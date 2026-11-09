@@ -2,9 +2,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .data/
-reports/
-fixtures/
-big/
+/reports/
+/fixtures/
+/big/
 *.docx
 .env
 .venv/
