@@ -1,0 +1,3 @@
+# Windows Server install (see deploy/windows/install.ps1).
+-r requirements.txt
+pywin32==308   # Job Objects: converter process trees are always terminated

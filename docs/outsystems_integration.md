@@ -1,5 +1,10 @@
 # OutSystems integration
 
+> **Existing OutSystems integration:** keep calling the previous routes
+> (`/word_to_json`, `/convert_word_to_html`, `/drawing_detection`, `/pdf-to-images`) on port
+> 50013. They are implemented by the new service with the same formats
+> ([legacy_api.md](legacy_api.md)). The `/api/v1` contract below is for new integrations.
+
 ## Flow
 
 ```

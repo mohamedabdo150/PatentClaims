@@ -16,6 +16,14 @@ decision.
 | Unsupported content fails explicitly | ✅ | `test_unsupported_content_fails_explicitly` |
 | Real-document regression suite | 🟡 | `tests/regression/test_customer_samples.py` (opt-in via `PATENT_SAMPLES_DIR`; documents stay outside the public repo) |
 
+## Previous-service compatibility and Windows
+| Item | Status | Evidence / next step |
+|---|---|---|
+| Legacy routes, same names/formats on port 50013 | ✅ | `tests/integration/test_legacy_api.py`, `test_pdf_routes.py`; customer samples via `/word_to_json` |
+| `/drawing_detection` parity with the real model | ⛔ | needs `best_model.h5` on the server: compare old vs new service on the same PDFs |
+| Windows Server native install (NSSM) | 🟡 | `windows` CI workflow: test suite + `install.ps1` + smoke test of all routes on Windows Server 2022 |
+| Cut-over on the customer server | ⛔ | stop old service, run `install.ps1`, smoke test, OutSystems regression |
+
 ## Integration
 | Item | Status | Evidence / next step |
 |---|---|---|

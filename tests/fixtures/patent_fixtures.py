@@ -104,6 +104,7 @@ def build_patent(
     extra_claims: int = 0,
     autonumber: bool = False,
     reverse_order: bool = False,
+    markers: bool = False,
 ) -> Path:
     """Build the six-claim synthetic patent (plus optional simple dependent claims)."""
     T = TEXT[lang]
@@ -189,6 +190,8 @@ def build_patent(
     b.add(P(run(T["field"], rtl=rtl)))
     b.add(P(run(_num(lang, 1), rtl=rtl), run(T["desc_numbered"], rtl=rtl)))
     b.add(P(run(T["claims"], rtl=rtl)))
+    if markers:  # customer format: {start} opens the claims, {next} closes each claim
+        b.add(P(run("{start}", rtl=rtl)))
     order = sorted(claims, reverse=reverse_order)
     for n in order:
         if n in missing:
@@ -198,9 +201,10 @@ def build_patent(
             b.add(*claims[n])
         if orphan_after == n:
             b.add(P(run("Orphan paragraph outside any claim" if lang == "en" else "فقرة خارج أي عنصر حماية", rtl=rtl)))
-        b.add(P())  # empty spacer paragraph between claims
-    b.add(P(run(T["end"], rtl=rtl)))
-    b.add(P(run(T["abstract"], rtl=rtl)), P(run(T["abstract_text"], rtl=rtl)))
+        b.add(P(run("{next}", rtl=rtl)) if markers else P())  # separator / empty spacer
+    if not markers:
+        b.add(P(run(T["end"], rtl=rtl)))
+        b.add(P(run(T["abstract"], rtl=rtl)), P(run(T["abstract_text"], rtl=rtl)))
     return b.build(path)
 
 

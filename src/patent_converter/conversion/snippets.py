@@ -230,7 +230,7 @@ class SnippetRenderer:
             profile = (self.workdir / f"profile{idx}").resolve()
             outdir = self.workdir / "pdf"
             cmd = [self.soffice, "--headless", "--norestore", "--nolockcheck", "--nodefault", "--nologo",
-                   f"-env:UserInstallation=file://{profile}", "--convert-to", "pdf",
+                   f"-env:UserInstallation={profile.as_uri()}", "--convert-to", "pdf",
                    "--outdir", str(outdir), *[str(inputs[k]) for k in batch]]
             try:
                 run_isolated(cmd, self.workdir / f"run{idx}", self.timeout)

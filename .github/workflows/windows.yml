@@ -1,0 +1,76 @@
+name: windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install LibreOffice and poppler
+        shell: pwsh
+        run: |
+          choco install libreoffice-fresh -y --no-progress
+          Invoke-WebRequest https://github.com/oschwartz10612/poppler-windows/releases/download/v24.08.0-0/Release-24.08.0-0.zip -OutFile poppler.zip
+          Expand-Archive poppler.zip -DestinationPath C:\poppler
+          "C:\poppler\poppler-24.08.0\Library\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          "C:\Program Files\LibreOffice\program" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-dev.txt -r requirements-windows.txt -r requirements-pdf.txt
+      - name: Test suite
+        env:
+          PYTHONUTF8: "1"
+          TF_USE_LEGACY_KERAS: "1"
+        run: python -m pytest -q -p no:cacheprovider -m "not performance"
+
+  install-smoke:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prerequisites (LibreOffice, poppler, NSSM)
+        shell: pwsh
+        run: |
+          choco install libreoffice-fresh nssm -y --no-progress
+          Invoke-WebRequest https://github.com/oschwartz10612/poppler-windows/releases/download/v24.08.0-0/Release-24.08.0-0.zip -OutFile poppler.zip
+          Expand-Archive poppler.zip -DestinationPath C:\poppler
+      - name: Fixtures and stand-in model (the real best_model.h5 is not in the repository)
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements-dev.txt -r requirements-pdf.txt
+          python scripts/generate_fixtures.py --out fx
+          python -c "from PIL import Image; Image.new('RGB',(64,48),(10,120,200)).save('fx/probe.png')"
+          New-Item -ItemType Directory -Force C:\models | Out-Null
+          $env:TF_USE_LEGACY_KERAS = "1"
+          python -c "import tf_keras as k; i=k.Input((224,224,3)); o=k.layers.Dense(3,activation='softmax')(k.layers.GlobalAveragePooling2D()(i)); k.Model(i,o).save(r'C:\models\best_model.h5')"
+      - name: Run install.ps1
+        shell: pwsh
+        run: >
+          .\deploy\windows\install.ps1
+          -PythonExe (Get-Command python).Source
+          -NssmPath (Get-Command nssm).Source
+          -PopplerBin C:\poppler\poppler-24.08.0\Library\bin
+          -ModelPath C:\models\best_model.h5
+          -AllowedClients 127.0.0.1
+          -ApiKey ci-key
+      - name: Smoke test all legacy routes on port 50013
+        run: python deploy/windows/smoke_test.py --port 50013 --fixtures fx --expect-model
+      - name: Service log
+        if: always()
+        shell: pwsh
+        run: Get-Content C:\PatentConverter\logs\service.log -Tail 200 -ErrorAction SilentlyContinue
+      - name: Uninstall (rollback path)
+        shell: pwsh
+        run: |
+          .\deploy\windows\uninstall.ps1 -NssmPath (Get-Command nssm).Source
+          if (Get-NetTCPConnection -LocalPort 50013 -State Listen -ErrorAction SilentlyContinue) { throw "port still in use" }

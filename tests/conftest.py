@@ -64,4 +64,6 @@ def docs(tmp_path_factory) -> dict[str, Path]:
         "ar_reversed": build_patent(d / "ar_reversed.docx", "ar", reverse_order=True),
         "en_extra": build_patent(d / "en_extra.docx", "en", extra_claims=4),
         "edge": build_edge_cases(d / "edge.docx"),
+        "en_marker": build_patent(d / "en_marker.docx", "en", markers=True),
+        "ar_marker": build_patent(d / "ar_marker.docx", "ar", markers=True),
     }

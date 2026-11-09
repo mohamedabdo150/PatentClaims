@@ -42,6 +42,8 @@ def main() -> int:
         build_patent(args.out / f"patent_{lang}.docx", lang)
         build_patent(args.out / f"patent_{lang}_autonumbered.docx", lang, autonumber=True)
     build_patent(args.out / "patent_ar_missing_claim5.docx", "ar", missing={5})
+    for lang in ("en", "ar"):  # {start}/{next} marker format (default "marker" profile)
+        build_patent(args.out / f"patent_marker_{lang}.docx", lang, markers=True)
     build_edge_cases(args.out / "edge_cases_en.docx")
     print(f"fixtures written to {args.out}")
     return 0

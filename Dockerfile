@@ -36,11 +36,14 @@ RUN --mount=type=secret,id=build_ca,required=false \
 FROM base AS builder
 RUN --mount=type=secret,id=build_ca,required=false apt-install python3.12-venv
 WORKDIR /build
-COPY requirements.txt .
+# WITH_PDF=1 adds TensorFlow & PDF libraries for /drawing_detection and /pdf-to-images.
+ARG WITH_PDF=0
+COPY requirements.txt requirements-pdf.txt ./
 RUN --mount=type=secret,id=build_ca,required=false \
     python3.12 -m venv /opt/venv \
     && if [ -f /run/secrets/build_ca ]; then export PIP_CERT=/run/secrets/build_ca; fi \
-    && /opt/venv/bin/pip install -r requirements.txt
+    && /opt/venv/bin/pip install -r requirements.txt \
+    && if [ "$WITH_PDF" = "1" ]; then /opt/venv/bin/pip install -r requirements-pdf.txt; fi
 
 FROM base AS runtime
 ARG APP_UID=10001

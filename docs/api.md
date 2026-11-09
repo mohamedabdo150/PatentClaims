@@ -1,5 +1,9 @@
 # API
 
+> The routes of the previous service (`/word_to_json`, `/convert_word_to_html`,
+> `/drawing_detection`, `/pdf-to-images`, `/health`) are documented in
+> [legacy_api.md](legacy_api.md). This page describes the `/api/v1` contract.
+
 All error responses use:
 ```json
 {"error": {"code": "…", "message": "…", "requestId": "…", "details": {}}}
@@ -46,7 +50,7 @@ capability reports of both documents, the number-based pairing comparison and th
 output-size estimate. No patent text.
 
 ## GET /health · GET /ready · GET /metrics
-* `/health`: liveness.
+* `/health`: liveness, in the previous service's format (`{"status":"OK",…,"model_loaded":…}`).
 * `/ready`: storage writable, free space ≥ `min_free_disk_gb`, and a job slot free → `200`; otherwise `503`, so a load balancer routes large jobs to the other node.
 * `/metrics`: Prometheus (`patent_*`: requests, failures by code, durations by phase, input/output sizes, claims, images, equations, risk findings, active jobs, last job peak RSS/CPU, temp storage).
 

@@ -36,6 +36,22 @@ error instead — never a partial `200`.
 | Security | ZIP-bomb/traversal/macro screening, DTD/entity rejection, allowlist HTML + SVG sanitizers, no network access during conversion, non-root read-only container |
 | Scale | 2 × 97 MB, 1 000 claims, 128 images, 273 MB response: **~11 s, < 0.5 GiB** container memory (synthetic) |
 
+## Previous-service routes (no OutSystems change)
+
+The routes of the previous service (`patent_claims`, `AI_API_v2.py`) are implemented with the
+same names, port **50013**, request formats and response keys: `POST /word_to_json`,
+`POST /convert_word_to_html`, `POST /drawing_detection`, `POST /pdf-to-images`,
+`GET /health`. See [docs/legacy_api.md](docs/legacy_api.md).
+
+## Windows Server
+
+Install natively as a Windows service (NSSM), not Docker:
+[docs/windows_deployment.md](docs/windows_deployment.md).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -AllowedClients <OutSystems IPs>
+```
+
 ## Quick start (development)
 
 Requirements: Python 3.12+, LibreOffice (writer, draw, math), poppler-utils.
@@ -76,6 +92,7 @@ and 5 (47.4). Use the configuration in [docs/ckeditor_integration.md](docs/ckedi
 
 ## Documentation
 
+* [Legacy API (previous service)](docs/legacy_api.md) · [Windows deployment](docs/windows_deployment.md)
 * [Architecture](docs/architecture.md) · [API](docs/api.md) · [Configuration](docs/configuration.md)
 * [Supported elements](docs/supported_elements.md) · [Performance](docs/performance.md) · [Deployment](docs/deployment.md)
 * [OutSystems integration](docs/outsystems_integration.md) · [CKEditor integration](docs/ckeditor_integration.md)

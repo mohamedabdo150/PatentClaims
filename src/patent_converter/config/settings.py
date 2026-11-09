@@ -13,11 +13,11 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, PydanticBaseSettingsSource, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_FILE = PROJECT_ROOT / "config" / "app.yaml"
@@ -94,7 +94,8 @@ class SecuritySettings(BaseModel):
     auth_enabled: bool = True
     api_key_header: str = "X-API-Key"
     # SHA-256 hex digests of accepted API keys. Never store plain keys in config.
-    api_key_sha256: list[str] = Field(default_factory=list)
+    # From the environment: a JSON list or a comma-separated string.
+    api_key_sha256: Annotated[list[str], NoDecode] = Field(default_factory=list)
     rate_limit_requests_per_minute: int = 30
 
     @property
@@ -108,6 +109,17 @@ class SecuritySettings(BaseModel):
     @property
     def max_auxiliary_xml_bytes(self) -> int:
         return int(self.max_auxiliary_xml_mb * MB)
+
+    @field_validator("api_key_sha256", mode="before")
+    @classmethod
+    def _split_hashes(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith("["):
+                import json
+                return json.loads(value)
+            return [v.strip() for v in value.split(",") if v.strip()]
+        return value
 
     @field_validator("api_key_sha256")
     @classmethod

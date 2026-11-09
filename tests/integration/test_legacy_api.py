@@ -140,3 +140,13 @@ def test_health_legacy_format(client):
     assert r.status_code == 200 and body["status"] == "OK"
     assert {"message", "extractor", "model_loaded", "workers", "timeout", "port"} <= set(body)
     assert body["port"] == 50013
+
+
+def test_word_to_json_marker_profile(tmp_path, docs):
+    """Default production profile ("marker"): {start}/{next} documents through the legacy route."""
+    with TestClient(create_app(make_settings(tmp_path, default_config_profile="marker"))) as c:
+        r = c.post("/word_to_json", files=legacy_files(english_file=docs["en_marker"], arabic_file=docs["ar_marker"]))
+    assert r.status_code == 200, r.text
+    claims = r.json()["claims"]
+    assert [c["id"] for c in claims] == [1, 2, 3, 4, 5, 6]
+    assert all("{next}" not in c["claim_english"] + c["claim_arabic"] for c in claims)

@@ -1,0 +1,51 @@
+# Windows Server configuration (native install, NSSM service).
+# Paths below are defaults; install.ps1 overrides them with environment variables
+# (PATENT__<SECTION>__<KEY>) according to its parameters.
+environment: production
+claim_patterns_file: claim_patterns.yaml
+default_config_profile: marker
+
+processing:
+  max_english_file_size_mb: 100
+  max_arabic_file_size_mb: 100
+  max_combined_upload_mb: 200
+  max_claims_per_document: 500
+  max_processing_seconds: 1800
+  max_concurrent_jobs_per_worker: 3   # one uvicorn worker, three concurrent conversions
+  queue_wait_seconds: 600             # legacy routes wait for a slot (the old service queued too)
+
+storage:
+  temporary_directory: 'C:\PatentConverter\data'
+  min_free_disk_gb: 20
+  cleanup_after_completion: true
+  stale_job_retention_minutes: 120
+
+output:
+  max_response_size_mb: 100
+
+conversion:
+  soffice_path: 'C:\Program Files\LibreOffice\program\soffice.com'
+  pdftocairo_path: 'C:\Drawing_Detection\poppler-23.07.0\Library\bin\pdftocairo.exe'
+  raster_dpi: 192
+  libreoffice_parallelism: 4
+  libreoffice_timeout_seconds: 600
+
+legacy:
+  enabled: true
+  require_api_key: false              # like the old service; restrict the port with Windows Firewall
+  port: 50013
+
+pdf:
+  enabled: true
+  model_path: 'C:\Drawing_Detection\models\best_model.h5'
+  poppler_path: 'C:\Drawing_Detection\poppler-23.07.0\Library\bin'
+  dpi: 200
+
+security:
+  auth_enabled: true                  # for /api/v1/...; install.ps1 sets the key hash or disables it
+  api_key_sha256: []
+  rate_limit_requests_per_minute: 120
+
+logging:
+  level: INFO
+  json_format: true

@@ -1,5 +1,8 @@
 # Deployment
 
+> **Windows Server:** install natively as a Windows service; see
+> [windows_deployment.md](windows_deployment.md). This page covers the Linux/Docker option.
+
 ## Image (`Dockerfile`)
 * Base `ubuntu:24.04` (Ubuntu Server LTS, as specified), Python 3.12, multi-stage,
   pinned `requirements.txt`.
