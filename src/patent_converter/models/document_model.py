@@ -1,66 +1,37 @@
 """Canonical internal document model (renderer-independent).
 
-Populated by the Phase 3 claim extractor and consumed by the Phase 4 HTML
-renderer. The model keeps document order (``Claim.blocks`` and
-``Paragraph.inlines`` are ordered lists) and never flattens content to plain
-text. Every visual asset is referenced through ``MediaRegistry`` so that each
-asset is read, converted and Base64-encoded exactly when its claim is
-rendered, then released.
+Built by ``extraction.model_builder`` from WordprocessingML and consumed by
+``renderers.html_renderer``. Order is preserved everywhere (``blocks`` and
+``inlines`` are ordered lists) and text is stored exactly as written in the
+document (the only transformation is the documented Symbol-font mapping).
+RTL is a presentation attribute (``direction``); characters are never reordered.
 
-Text is stored exactly as in ``w:t`` (no normalization, no reordering): RTL is
-a presentation attribute (``direction``), never a transformation of characters.
+Visual assets are referenced by integer ids into ``assets.AssetRegistry`` so
+image bytes are never held by the model: each asset is converted to a file on
+disk once and Base64-streamed into the HTML only when its claim is written.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Literal, Union
 
 Direction = Literal["ltr", "rtl"]
 
 
-class AssetKind(str, Enum):
-    RASTER = "raster"          # png/jpeg/gif/bmp/webp/tiff
-    VECTOR_SVG = "svg"
-    METAFILE = "metafile"      # emf/wmf -> needs isolated conversion
-    OLE_PREVIEW = "ole_preview"
-    RENDERED = "rendered"      # produced by the converter (equation/group rasterization)
-
-
-@dataclass
-class MediaAsset:
-    asset_id: str              # stable id, e.g. part name
-    part_name: str | None      # source part inside the DOCX (None for rendered assets)
-    kind: AssetKind
-    source_format: str
-    size_bytes: int
-    width_px: int | None = None
-    height_px: int | None = None
-
-
-@dataclass
-class MediaRegistry:
-    assets: dict[str, MediaAsset] = field(default_factory=dict)
-
-    def register(self, asset: MediaAsset) -> str:
-        self.assets.setdefault(asset.asset_id, asset)
-        return asset.asset_id
-
-
-@dataclass
+@dataclass(frozen=True)
 class RunFormat:
     bold: bool = False
     italic: bool = False
-    underline: str | None = None          # single/double/...
+    underline: str | None = None          # css: single->solid, double, dotted, ...
     strike: bool = False
     vertical_align: Literal["baseline", "superscript", "subscript"] = "baseline"
-    font_family: str | None = None
-    font_size_half_points: int | None = None
-    color: str | None = None              # hex RRGGBB
-    highlight: str | None = None
-    rtl: bool = False
-    symbol_font: str | None = None        # set when text uses a symbol font mapping
+    font_family: str | None = None        # emitted only when different from the document default
+    font_size_pt: float | None = None     # idem
+    color: str | None = None              # "#RRGGBB"
+    highlight: str | None = None          # css colour
+    caps: bool = False
+    small_caps: bool = False
 
 
 @dataclass
@@ -71,74 +42,76 @@ class TextRun:
 
 
 @dataclass
-class Break:
-    break_type: Literal["line", "page", "column", "tab"] = "line"
+class LineBreak:
     kind: Literal["break"] = "break"
 
 
 @dataclass
 class Hyperlink:
-    runs: list[TextRun]
-    target: str | None                    # external URL (never fetched) or None
-    anchor: str | None = None
+    inlines: list["Inline"]
+    href: str | None                       # only http/https/mailto survive
     kind: Literal["hyperlink"] = "hyperlink"
 
 
 @dataclass
-class InlineImage:
-    asset_id: str
-    width_emu: int | None
-    height_emu: int | None
-    alt_text: str = ""
-    floating: bool = False                # wp:anchor (position approximated in flow)
+class DirSpan:
+    inlines: list["Inline"]
+    direction: Direction
+    override: bool = False                 # w:bdo
+    kind: Literal["dir"] = "dir"
+
+
+@dataclass
+class Image:
+    asset_id: int
+    width_px: float | None
+    height_px: float | None
+    alt: str = ""
+    floating: bool = False                 # wp:anchor -> kept at its position in the text flow
+    source: Literal["media", "drawing", "vml", "ole_preview", "equation"] = "media"
     kind: Literal["image"] = "image"
 
 
 @dataclass
 class Equation:
-    omml_xml: bytes                       # original OMML subtree, kept for faithful conversion
-    display: bool                         # m:oMathPara vs inline m:oMath
-    mathml: str | None = None             # filled by the equation converter
-    fallback_asset_id: str | None = None  # rendered image when MathML is not faithful
+    display: bool
+    mathml: str | None                     # MathML markup when the conversion is faithful
+    fallback_asset_id: int | None = None   # rendered image of the original OMML
+    alt: str = ""                          # linear text of the equation
+    text_chars: int = 0                    # OMML characters represented by this equation
     kind: Literal["equation"] = "equation"
 
 
 @dataclass
-class Drawing:
-    """Grouped shapes / canvases / text boxes that must keep their visual grouping."""
-    source: Literal["drawingml", "vml"]
+class TextBox:
+    blocks: list["Block"]
     floating: bool
-    child_asset_ids: list[str] = field(default_factory=list)
-    text_blocks: list["Block"] = field(default_factory=list)
-    rendered_asset_id: str | None = None
-    width_emu: int | None = None
-    height_emu: int | None = None
-    kind: Literal["drawing"] = "drawing"
+    width_px: float | None = None
+    bordered: bool = False
+    kind: Literal["textbox"] = "textbox"
 
 
 @dataclass
-class EmbeddedObject:
-    prog_id: str
-    preview_asset_id: str | None          # OLE objects are rendered from their preview only
-    kind: Literal["object"] = "object"
+class NoteReference:
+    mark: str                              # displayed footnote/endnote number
+    note_type: Literal["footnote", "endnote"]
+    kind: Literal["noteref"] = "noteref"
 
 
-Inline = Union[TextRun, Break, Hyperlink, InlineImage, Equation, Drawing, EmbeddedObject]
+Inline = Union[TextRun, LineBreak, Hyperlink, DirSpan, Image, Equation, TextBox, NoteReference]
 
 
 @dataclass
 class ParagraphFormat:
     direction: Direction = "ltr"
-    alignment: Literal["left", "right", "center", "justify", "start", "end"] | None = None
-    indent_left_twips: int | None = None
-    indent_right_twips: int | None = None
-    indent_first_line_twips: int | None = None
-    spacing_before_twips: int | None = None
-    spacing_after_twips: int | None = None
-    line_spacing: float | None = None
-    numbering_label: str | None = None    # resolved w:numPr label (e.g. "1.")
-    list_level: int | None = None
-    style_id: str | None = None
+    alignment: str | None = None           # css text-align
+    margin_start_pt: float | None = None
+    margin_end_pt: float | None = None
+    text_indent_pt: float | None = None
+    space_before_pt: float | None = None
+    space_after_pt: float | None = None
+    line_height: float | None = None       # multiple of single spacing
+    numbering_label: str | None = None
 
 
 @dataclass
@@ -149,26 +122,32 @@ class Paragraph:
 
 
 @dataclass
+class CellBorder:
+    style: str                             # css border-style
+    width_px: float
+    color: str
+
+
+@dataclass
 class TableCell:
     blocks: list["Block"] = field(default_factory=list)
     col_span: int = 1
-    row_span: int = 1                     # computed from w:vMerge
+    row_span: int = 1
+    borders: dict[str, CellBorder | None] = field(default_factory=dict)   # top/bottom/start/end
     background: str | None = None
     vertical_align: str | None = None
-    borders: dict[str, str] = field(default_factory=dict)
+    width_pt: float | None = None
 
 
 @dataclass
 class TableRow:
     cells: list[TableCell] = field(default_factory=list)
-    is_header: bool = False
 
 
 @dataclass
 class Table:
     rows: list[TableRow] = field(default_factory=list)
     direction: Direction = "ltr"
-    column_widths_twips: list[int] = field(default_factory=list)
     kind: Literal["table"] = "table"
 
 
@@ -176,36 +155,37 @@ Block = Union[Paragraph, Table]
 
 
 @dataclass
-class ClaimDiagnostics:
-    images_detected: int = 0
-    images_embedded: int = 0
-    equations_detected: int = 0
-    equations_rendered: int = 0
-    tables_detected: int = 0
-    tables_rendered: int = 0
-    unsupported: dict[str, int] = field(default_factory=dict)
-    unicode_warnings: int = 0
+class ClaimCounters:
+    """Integrity counters filled by the builder and checked against the analyzer."""
+    text_chars: int = 0              # text nodes represented as text in the model
+    text_chars_rasterized: int = 0   # text inside drawings rendered to images
+    text_chars_removed: int = 0      # removed by an explicit policy (accepted deletions, hidden text)
+    image_refs: int = 0              # image relationship references accounted for
+    images: int = 0                  # Image inlines (embedded assets)
+    equations: int = 0
+    equations_mathml: int = 0
+    equations_image: int = 0
+    tables: int = 0
+    tables_rasterized: int = 0
+    textboxes: int = 0
+    drawings_rasterized: int = 0
+    floating_objects: int = 0
+    symbol_chars_mapped: int = 0
+
+
+@dataclass
+class ContentIssue:
+    code: str
+    severity: Literal["error", "warning"]
+    message: str
+    count: int = 1
 
 
 @dataclass
 class Claim:
-    number: str                           # normalized pairing key
-    number_raw: str                       # exactly as written
+    number: str                            # normalized pairing key
+    number_raw: str                        # exactly as written
     language: Literal["en", "ar"]
     blocks: list[Block] = field(default_factory=list)
-    diagnostics: ClaimDiagnostics = field(default_factory=ClaimDiagnostics)
-
-
-@dataclass
-class DocumentMetadata:
-    language: Literal["en", "ar"]
-    source_name: str
-    sha256: str
-    profile: str
-
-
-@dataclass
-class Document:
-    metadata: DocumentMetadata
-    media: MediaRegistry = field(default_factory=MediaRegistry)
-    claims: list[Claim] = field(default_factory=list)
+    counters: ClaimCounters = field(default_factory=ClaimCounters)
+    issues: list[ContentIssue] = field(default_factory=list)
