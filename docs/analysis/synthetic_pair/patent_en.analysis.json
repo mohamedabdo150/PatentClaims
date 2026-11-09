@@ -1,0 +1,674 @@
+{
+  "file": {
+    "name": "patent_en.docx",
+    "language": "en",
+    "sizeBytes": 12146,
+    "sha256": "c94c5ec06933e55a7fbee05f189d01b44fdd84922161fe15fc5f2e35b9a38094"
+  },
+  "status": "accepted",
+  "package": {
+    "compressed_size": 12146,
+    "uncompressed_size": 44270,
+    "entry_count": 16,
+    "overall_compression_ratio": 3.64,
+    "max_entry_compression_ratio": 0.0,
+    "max_ratio_entry": null,
+    "document_xml_part": null,
+    "document_xml_size": 0,
+    "media_entry_count": 10,
+    "media_total_size": 22454,
+    "embedding_entry_count": 1,
+    "embedding_total_size": 2048,
+    "xml_total_size": 19768,
+    "has_vba_project": false,
+    "largest_entries": [
+      {
+        "name": "word/media/image5.tiff",
+        "size": 18140,
+        "compressedSize": 278
+      },
+      {
+        "name": "word/document.xml",
+        "size": 16142,
+        "compressedSize": 2739
+      },
+      {
+        "name": "word/embeddings/oleObject1.bin",
+        "size": 2048,
+        "compressedSize": 2053
+      },
+      {
+        "name": "word/_rels/document.xml.rels",
+        "size": 1923,
+        "compressedSize": 333
+      },
+      {
+        "name": "word/media/image3.jpeg",
+        "size": 1454,
+        "compressedSize": 1454
+      },
+      {
+        "name": "[Content_Types].xml",
+        "size": 1048,
+        "compressedSize": 310
+      },
+      {
+        "name": "word/media/image4.gif",
+        "size": 903,
+        "compressedSize": 903
+      },
+      {
+        "name": "word/media/image1.png",
+        "size": 601,
+        "compressedSize": 601
+      },
+      {
+        "name": "word/media/image8.png",
+        "size": 482,
+        "compressedSize": 482
+      },
+      {
+        "name": "word/media/image2.png",
+        "size": 439,
+        "compressedSize": 439
+      }
+    ],
+    "findings": [],
+    "accepted": true
+  },
+  "ooxml": {
+    "mainDocumentPart": "word/document.xml",
+    "mainContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+    "strict": false,
+    "documentXmlBytes": 16142,
+    "relationshipCount": 13,
+    "relationshipTypes": {
+      "styles": 1,
+      "image": 10,
+      "oleObject": 1,
+      "hyperlink": 1
+    },
+    "externalRelationships": {
+      "hyperlink": 1
+    },
+    "externalNonHyperlinkRelationships": 0,
+    "unsafeRelationships": 0,
+    "headers": 0,
+    "footers": 0,
+    "headerFooterImages": 0,
+    "hasFootnotes": false,
+    "hasEndnotes": false
+  },
+  "structure": {
+    "topLevelBlocks": {
+      "paragraph": 34,
+      "table": 2,
+      "final_section_properties": 1
+    },
+    "counts": {
+      "alternate_content": 2,
+      "blips": 11,
+      "drawing_anchor": 3,
+      "drawing_groups": 1,
+      "drawing_inline": 8,
+      "drawing_shapes": 2,
+      "drawings": 11,
+      "equation_paragraphs": 1,
+      "equations": 4,
+      "hyperlinks": 1,
+      "max_table_nesting": 3,
+      "merged_cells_horizontal": 1,
+      "merged_cells_vertical": 2,
+      "nested_tables": 1,
+      "ole_embed": 1,
+      "ole_objects": 1,
+      "paragraphs": 48,
+      "pictures": 11,
+      "runs": 62,
+      "svg_blips": 1,
+      "table_cells": 12,
+      "table_rows": 5,
+      "tables": 3,
+      "textboxes": 2,
+      "vert_align_subscript": 3,
+      "vert_align_superscript": 1,
+      "vml_imagedata": 2,
+      "vml_pict": 1,
+      "vml_shapes": 2,
+      "w_objects": 1
+    },
+    "ommlConstructs": {
+      "f": 1,
+      "sSup": 1,
+      "sSub": 1,
+      "d": 1,
+      "m": 1,
+      "nary": 1,
+      "rad": 1
+    },
+    "fieldTypes": {},
+    "symbolFonts": {},
+    "oleProgIds": {
+      "ChemDraw.Document.6.0": 1
+    },
+    "unknownElements": {},
+    "relationshipReferences": 16,
+    "missingRelationshipTargets": {}
+  },
+  "numbering": {
+    "numberedParagraphs": 0,
+    "claimsNumberedByWordNumbering": 0,
+    "unsupportedFormats": {}
+  },
+  "claims": {
+    "profile": "synthetic-test",
+    "profileVerified": false,
+    "endMode": "explicit_end",
+    "sectionFound": true,
+    "sectionStartBlock": 2,
+    "sectionEndBlock": 33,
+    "count": 6,
+    "numbers": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+    ],
+    "duplicates": [],
+    "orphanBlocks": 0,
+    "issues": [],
+    "perClaim": [
+      {
+        "number": "1",
+        "numberRaw": "1",
+        "numberFromNumbering": false,
+        "startBlock": 3,
+        "endBlock": 6,
+        "blockCount": 4,
+        "closedBy": "end_marker",
+        "paragraphs": 4,
+        "tables": 0,
+        "imageReferences": 1,
+        "drawings": 1,
+        "vmlPictures": 0,
+        "equations": 1,
+        "oleObjects": 0,
+        "textboxes": 0,
+        "symbols": 0,
+        "textChars": 109,
+        "textUtf8Bytes": 109,
+        "mediaParts": [
+          "word/media/image1.png"
+        ],
+        "unicodeWarnings": 0,
+        "estimatedHtmlBytes": 4140
+      },
+      {
+        "number": "2",
+        "numberRaw": "2",
+        "numberFromNumbering": false,
+        "startBlock": 8,
+        "endBlock": 11,
+        "blockCount": 4,
+        "closedBy": "end_marker",
+        "paragraphs": 3,
+        "tables": 1,
+        "imageReferences": 2,
+        "drawings": 1,
+        "vmlPictures": 0,
+        "equations": 0,
+        "oleObjects": 0,
+        "textboxes": 1,
+        "symbols": 0,
+        "textChars": 166,
+        "textUtf8Bytes": 166,
+        "mediaParts": [
+          "word/media/image1.png",
+          "word/media/image2.png"
+        ],
+        "unicodeWarnings": 0,
+        "estimatedHtmlBytes": 1867
+      },
+      {
+        "number": "3",
+        "numberRaw": "3",
+        "numberFromNumbering": false,
+        "startBlock": 13,
+        "endBlock": 16,
+        "blockCount": 4,
+        "closedBy": "end_marker",
+        "paragraphs": 4,
+        "tables": 0,
+        "imageReferences": 1,
+        "drawings": 0,
+        "vmlPictures": 0,
+        "equations": 0,
+        "oleObjects": 1,
+        "textboxes": 0,
+        "symbols": 0,
+        "textChars": 171,
+        "textUtf8Bytes": 180,
+        "mediaParts": [
+          "word/media/image10.emf"
+        ],
+        "unicodeWarnings": 0,
+        "estimatedHtmlBytes": 155206
+      },
+      {
+        "number": "4",
+        "numberRaw": "4",
+        "numberFromNumbering": false,
+        "startBlock": 18,
+        "endBlock": 22,
+        "blockCount": 5,
+        "closedBy": "end_marker",
+        "paragraphs": 4,
+        "tables": 2,
+        "imageReferences": 2,
+        "drawings": 3,
+        "vmlPictures": 0,
+        "equations": 1,
+        "oleObjects": 0,
+        "textboxes": 1,
+        "symbols": 0,
+        "textChars": 97,
+        "textUtf8Bytes": 98,
+        "mediaParts": [
+          "word/media/image2.png",
+          "word/media/image1.png"
+        ],
+        "unicodeWarnings": 0,
+        "estimatedHtmlBytes": 4697
+      },
+      {
+        "number": "5",
+        "numberRaw": "5",
+        "numberFromNumbering": false,
+        "startBlock": 24,
+        "endBlock": 24,
+        "blockCount": 1,
+        "closedBy": "end_marker",
+        "paragraphs": 1,
+        "tables": 0,
+        "imageReferences": 0,
+        "drawings": 0,
+        "vmlPictures": 0,
+        "equations": 2,
+        "oleObjects": 0,
+        "textboxes": 0,
+        "symbols": 0,
+        "textChars": 71,
+        "textUtf8Bytes": 71,
+        "mediaParts": [],
+        "unicodeWarnings": 0,
+        "estimatedHtmlBytes": 6241
+      },
+      {
+        "number": "6",
+        "numberRaw": "6",
+        "numberFromNumbering": false,
+        "startBlock": 26,
+        "endBlock": 31,
+        "blockCount": 6,
+        "closedBy": "end_marker",
+        "paragraphs": 6,
+        "tables": 0,
+        "imageReferences": 8,
+        "drawings": 6,
+        "vmlPictures": 1,
+        "equations": 0,
+        "oleObjects": 0,
+        "textboxes": 0,
+        "symbols": 0,
+        "textChars": 114,
+        "textUtf8Bytes": 114,
+        "mediaParts": [
+          "word/media/image3.jpeg",
+          "word/media/image4.gif",
+          "word/media/image5.tiff",
+          "word/media/image6.emf",
+          "word/media/image7.wmf",
+          "word/media/image8.png",
+          "word/media/image9.svg",
+          "word/media/image2.png"
+        ],
+        "unicodeWarnings": 0,
+        "estimatedHtmlBytes": 87157
+      }
+    ]
+  },
+  "unicode": {
+    "document": {
+      "total_chars": 881,
+      "arabic_chars": 0,
+      "latin_chars": 646,
+      "digit_ascii": 36,
+      "digit_arabic_indic": 0,
+      "arabic_diacritics": 0,
+      "arabic_presentation_forms": 0,
+      "greek_chars": 2,
+      "math_symbols": 3,
+      "cjk_chars": 0,
+      "replacement_chars": 0,
+      "control_chars": 0,
+      "invalid_xml_chars": 0,
+      "private_use_chars": 0,
+      "unassigned_chars": 0,
+      "noncharacters": 0,
+      "bidi_controls": 0,
+      "suspicious_encoding_sequences": 0,
+      "warning_count": 0
+    },
+    "claims": {
+      "total_chars": 728,
+      "arabic_chars": 0,
+      "latin_chars": 520,
+      "digit_ascii": 35,
+      "digit_arabic_indic": 0,
+      "arabic_diacritics": 0,
+      "arabic_presentation_forms": 0,
+      "greek_chars": 2,
+      "math_symbols": 3,
+      "cjk_chars": 0,
+      "replacement_chars": 0,
+      "control_chars": 0,
+      "invalid_xml_chars": 0,
+      "private_use_chars": 0,
+      "unassigned_chars": 0,
+      "noncharacters": 0,
+      "bidi_controls": 0,
+      "suspicious_encoding_sequences": 0,
+      "warning_count": 0
+    }
+  },
+  "media": {
+    "count": 10,
+    "totalBytes": 22454,
+    "formats": {
+      "png": 3,
+      "jpeg": 1,
+      "gif": 1,
+      "tiff": 1,
+      "emf": 2,
+      "wmf": 1,
+      "svg": 1
+    },
+    "referencedByMainDocument": 10,
+    "unreferencedByMainDocument": 0,
+    "referencedInClaims": 10,
+    "imageReferencesInClaims": 14,
+    "requiringConversion": 4,
+    "maxPixels": 44551,
+    "images": [
+      {
+        "part_name": "word/media/image1.png",
+        "size_bytes": 601,
+        "detected_format": "png",
+        "extension": "png",
+        "width_px": 160,
+        "height_px": 100,
+        "mode": "RGBA",
+        "frames": 1,
+        "dpi": null,
+        "has_alpha": true,
+        "browser_native": true,
+        "requires_conversion": false,
+        "issues": [],
+        "pixels": 16000,
+        "referencesInMainDocument": 3,
+        "referencesInClaims": 3
+      },
+      {
+        "part_name": "word/media/image2.png",
+        "size_bytes": 439,
+        "detected_format": "png",
+        "extension": "png",
+        "width_px": 80,
+        "height_px": 80,
+        "mode": "RGBA",
+        "frames": 1,
+        "dpi": null,
+        "has_alpha": true,
+        "browser_native": true,
+        "requires_conversion": false,
+        "issues": [],
+        "pixels": 6400,
+        "referencesInMainDocument": 3,
+        "referencesInClaims": 3
+      },
+      {
+        "part_name": "word/media/image3.jpeg",
+        "size_bytes": 1454,
+        "detected_format": "jpeg",
+        "extension": "jpeg",
+        "width_px": 100,
+        "height_px": 60,
+        "mode": "RGB",
+        "frames": 1,
+        "dpi": null,
+        "has_alpha": false,
+        "browser_native": true,
+        "requires_conversion": false,
+        "issues": [],
+        "pixels": 6000,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image4.gif",
+        "size_bytes": 903,
+        "detected_format": "gif",
+        "extension": "gif",
+        "width_px": 100,
+        "height_px": 60,
+        "mode": "P",
+        "frames": 1,
+        "dpi": null,
+        "has_alpha": false,
+        "browser_native": true,
+        "requires_conversion": false,
+        "issues": [],
+        "pixels": 6000,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image5.tiff",
+        "size_bytes": 18140,
+        "detected_format": "tiff",
+        "extension": "tiff",
+        "width_px": 100,
+        "height_px": 60,
+        "mode": "RGB",
+        "frames": 1,
+        "dpi": [
+          1.0,
+          1.0
+        ],
+        "has_alpha": false,
+        "browser_native": false,
+        "requires_conversion": true,
+        "issues": [],
+        "pixels": 6000,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image6.emf",
+        "size_bytes": 108,
+        "detected_format": "emf",
+        "extension": "emf",
+        "width_px": 199,
+        "height_px": 99,
+        "mode": "RGB",
+        "frames": 1,
+        "dpi": [
+          95.51,
+          95.03
+        ],
+        "has_alpha": false,
+        "browser_native": false,
+        "requires_conversion": true,
+        "issues": [],
+        "pixels": 19701,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image7.wmf",
+        "size_bytes": 46,
+        "detected_format": "wmf",
+        "extension": "wmf",
+        "width_px": 72,
+        "height_px": 36,
+        "mode": "RGB",
+        "frames": 1,
+        "dpi": [
+          72.0,
+          72.0
+        ],
+        "has_alpha": false,
+        "browser_native": false,
+        "requires_conversion": true,
+        "issues": [],
+        "pixels": 2592,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image8.png",
+        "size_bytes": 482,
+        "detected_format": "png",
+        "extension": "png",
+        "width_px": 120,
+        "height_px": 80,
+        "mode": "RGBA",
+        "frames": 1,
+        "dpi": null,
+        "has_alpha": true,
+        "browser_native": true,
+        "requires_conversion": false,
+        "issues": [],
+        "pixels": 9600,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image9.svg",
+        "size_bytes": 173,
+        "detected_format": "svg",
+        "extension": "svg",
+        "width_px": 120,
+        "height_px": 80,
+        "mode": null,
+        "frames": null,
+        "dpi": null,
+        "has_alpha": null,
+        "browser_native": true,
+        "requires_conversion": false,
+        "issues": [],
+        "pixels": 9600,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      },
+      {
+        "part_name": "word/media/image10.emf",
+        "size_bytes": 108,
+        "detected_format": "emf",
+        "extension": "emf",
+        "width_px": 299,
+        "height_px": 149,
+        "mode": "RGB",
+        "frames": 1,
+        "dpi": [
+          95.67,
+          95.35
+        ],
+        "has_alpha": false,
+        "browser_native": false,
+        "requires_conversion": true,
+        "issues": [],
+        "pixels": 44551,
+        "referencesInMainDocument": 1,
+        "referencesInClaims": 1
+      }
+    ]
+  },
+  "estimates": {
+    "method": "heuristic: text*markup_factor + base64(embedded/converted images) + equations*constant",
+    "claimsTextChars": 728,
+    "claimsTextUtf8Bytes": 738,
+    "claimsEmbeddedMediaBytes": 183804,
+    "claimsEmbeddedMediaBase64Bytes": 245072,
+    "claimsEquations": 4,
+    "estimatedHtmlBytes": 259308,
+    "estimatedJsonContributionBytes": 267087,
+    "estimatedSqlNvarcharBytes": 518596,
+    "maxResponseBytes": 104857600
+  },
+  "timingsSeconds": {
+    "package_scan": 0.0006,
+    "metadata": 0.0007,
+    "document_scan": 0.0056,
+    "media_probe": 0.0247,
+    "total": 0.0319
+  },
+  "risks": [
+    {
+      "code": "UNVERIFIED_PATTERN_PROFILE",
+      "severity": "medium",
+      "message": "claim pattern profile 'synthetic-test' has not been verified against real documents"
+    },
+    {
+      "code": "VECTOR_METAFILES",
+      "severity": "medium",
+      "message": "EMF/WMF images require isolated conversion to PNG/SVG",
+      "count": 3
+    },
+    {
+      "code": "OLE_OBJECTS",
+      "severity": "medium",
+      "message": "embedded OLE objects (e.g. ChemDraw/Equation Editor) are rendered from their preview image only",
+      "count": 1
+    },
+    {
+      "code": "OMML_EQUATIONS",
+      "severity": "medium",
+      "message": "OMML equations require conversion; constructs used: ['d', 'f', 'm', 'nary', 'rad', 'sSub', 'sSup']",
+      "count": 4
+    },
+    {
+      "code": "FLOATING_DRAWINGS",
+      "severity": "medium",
+      "message": "floating/anchored drawings: position is approximated in flow layout",
+      "count": 3
+    },
+    {
+      "code": "DRAWINGML_SHAPES",
+      "severity": "medium",
+      "message": "DrawingML shapes/groups/canvases require rendering to an image to preserve grouping",
+      "count": 3
+    },
+    {
+      "code": "TIFF_IMAGES",
+      "severity": "low",
+      "message": "TIFF images must be converted to PNG",
+      "count": 1
+    },
+    {
+      "code": "TEXT_BOXES",
+      "severity": "low",
+      "message": "text boxes (rendered as inline blocks)",
+      "count": 2
+    }
+  ],
+  "resources": {
+    "peak_rss_mb": 45.38,
+    "start_rss_mb": 40.51,
+    "avg_cpu_percent": 92.7,
+    "peak_cpu_percent": 92.7,
+    "wall_seconds": 0.03
+  }
+}

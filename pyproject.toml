@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patent-converter"
+version = "0.2.0"
+description = "Bilingual (Arabic/English) patent claims DOCX-to-HTML conversion platform"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "-ra -m \"not performance\""
+markers = [
+    "performance: slow benchmark tests (deselect with -m 'not performance')",
+]

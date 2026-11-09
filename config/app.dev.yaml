@@ -1,0 +1,15 @@
+# Development configuration: local temp dir, auth disabled, readable logs.
+environment: development
+claim_patterns_file: claim_patterns.yaml
+default_config_profile: example
+
+storage:
+  temporary_directory: ./.data/patent-processing
+  min_free_disk_gb: 1
+
+security:
+  auth_enabled: false
+
+logging:
+  level: DEBUG
+  json_format: false

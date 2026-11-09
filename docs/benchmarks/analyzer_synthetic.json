@@ -1,0 +1,138 @@
+[
+  {
+    "seconds": 0.11242653199997221,
+    "peak_rss_mb": 41.26953125,
+    "claims": 500,
+    "images": 3,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0089,
+      "metadata": 0.0007,
+      "document_scan": 0.0943,
+      "media_probe": 0.008,
+      "total": 0.1123
+    },
+    "estimated_html_mb": 12.172521591186523,
+    "file": "large_10mb_en.docx",
+    "size_mb": 8.595184326171875
+  },
+  {
+    "seconds": 0.17862981199982642,
+    "peak_rss_mb": 41.34375,
+    "claims": 500,
+    "images": 3,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0094,
+      "metadata": 0.0006,
+      "document_scan": 0.1598,
+      "media_probe": 0.0084,
+      "total": 0.1786
+    },
+    "estimated_html_mb": 12.43118953704834,
+    "file": "large_10mb_ar.docx",
+    "size_mb": 8.596776008605957
+  },
+  {
+    "seconds": 0.12898070699998243,
+    "peak_rss_mb": 41.20703125,
+    "claims": 500,
+    "images": 8,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0215,
+      "metadata": 0.0007,
+      "document_scan": 0.0974,
+      "media_probe": 0.0088,
+      "total": 0.1289
+    },
+    "estimated_html_mb": 31.259130477905273,
+    "file": "large_25mb_en.docx",
+    "size_mb": 22.912110328674316
+  },
+  {
+    "seconds": 0.21967178500017326,
+    "peak_rss_mb": 41.39453125,
+    "claims": 500,
+    "images": 8,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0225,
+      "metadata": 0.0007,
+      "document_scan": 0.1871,
+      "media_probe": 0.0089,
+      "total": 0.2196
+    },
+    "estimated_html_mb": 31.51779842376709,
+    "file": "large_25mb_ar.docx",
+    "size_mb": 22.913808822631836
+  },
+  {
+    "seconds": 0.16771536099986406,
+    "peak_rss_mb": 41.42578125,
+    "claims": 500,
+    "images": 17,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0473,
+      "metadata": 0.0008,
+      "document_scan": 0.1087,
+      "media_probe": 0.0103,
+      "total": 0.1676
+    },
+    "estimated_html_mb": 65.61502647399902,
+    "file": "large_50mb_en.docx",
+    "size_mb": 48.67859935760498
+  },
+  {
+    "seconds": 0.22328008699992097,
+    "peak_rss_mb": 41.4296875,
+    "claims": 500,
+    "images": 17,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0448,
+      "metadata": 0.0008,
+      "document_scan": 0.1681,
+      "media_probe": 0.0091,
+      "total": 0.2232
+    },
+    "estimated_html_mb": 65.87369441986084,
+    "file": "large_50mb_ar.docx",
+    "size_mb": 48.684282302856445
+  },
+  {
+    "seconds": 0.19209654299993417,
+    "peak_rss_mb": 41.28125,
+    "claims": 500,
+    "images": 34,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.079,
+      "metadata": 0.0008,
+      "document_scan": 0.1012,
+      "media_probe": 0.0104,
+      "total": 0.192
+    },
+    "estimated_html_mb": 130.50949668884277,
+    "file": "large_100mb_en.docx",
+    "size_mb": 97.35187816619873
+  },
+  {
+    "seconds": 0.2680336050000278,
+    "peak_rss_mb": 41.484375,
+    "claims": 500,
+    "images": 34,
+    "status": "accepted",
+    "timings": {
+      "package_scan": 0.0824,
+      "metadata": 0.0008,
+      "document_scan": 0.1736,
+      "media_probe": 0.0106,
+      "total": 0.2679
+    },
+    "estimated_html_mb": 130.7681646347046,
+    "file": "large_100mb_ar.docx",
+    "size_mb": 97.35345649719238
+  }
+]

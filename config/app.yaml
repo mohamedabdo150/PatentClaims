@@ -1,0 +1,52 @@
+# Production configuration. Values are initial engineering targets and MUST be
+# validated by benchmarking with representative patent documents.
+environment: production
+claim_patterns_file: claim_patterns.yaml
+default_config_profile: example
+
+processing:
+  max_english_file_size_mb: 100
+  max_arabic_file_size_mb: 100
+  max_combined_upload_mb: 200
+  max_claims_per_document: 500
+  max_processing_seconds: 1800
+  max_concurrent_jobs_per_worker: 1
+  max_worker_memory_mb: 40960
+
+storage:
+  temporary_directory: /data/patent-processing
+  max_temporary_storage_gb: 800
+  min_free_disk_gb: 20
+  cleanup_after_completion: true
+  stale_job_retention_minutes: 120
+
+output:
+  max_response_size_mb: 100
+  include_diagnostics: false
+  embed_images_as_base64: true
+  allow_external_images: false
+
+security:
+  max_zip_entries: 10000
+  max_uncompressed_size_mb: 1024
+  max_compression_ratio: 150
+  max_entry_compression_ratio: 500
+  compression_ratio_min_entry_kb: 1024
+  max_document_xml_mb: 512
+  max_auxiliary_xml_mb: 64
+  max_image_pixels: 200000000
+  max_image_dimension_px: 30000
+  max_svg_size_mb: 20
+  sanitize_svg: true
+  reject_unsafe_xml: true
+  reject_macro_documents: true
+  reject_encrypted_entries: true
+  auth_enabled: true
+  api_key_header: X-API-Key
+  # Provide via env: PATENT__SECURITY__API_KEY_SHA256='["<sha256-hex>"]'
+  api_key_sha256: []
+  rate_limit_requests_per_minute: 30
+
+logging:
+  level: INFO
+  json_format: true

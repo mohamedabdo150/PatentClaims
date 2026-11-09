@@ -1,0 +1,63 @@
+==============================================================================
+DOCX CAPABILITY REPORT  [EN]  edge_cases_en.docx
+==============================================================================
+Status                 : ACCEPTED
+File size              : 0.00 MB   sha256 09be0cfa6978bafc…
+Uncompressed package   : 0.00 MB  (ratio 2.09:1)
+ZIP entries            : 5
+Media entries          : 0 (0.00 MB)
+Embeddings             : 0 (0.00 MB)
+document.xml           : 0.00 MB
+Relationships          : 2 {'styles': 1, 'image': 1}
+------------------------------------------------------------------------------
+Paragraphs (all/top)   : 6 / 6
+Tables (nested)        : 0 (0), merged cells h/v 0/0
+RTL paragraphs / runs  : 0 / 0
+Drawings inline/anchor : 1 (1/0), pictures 1, groups 0, shapes 0
+VML pict/shapes/images : 0 / 0 / 0
+Text boxes             : 0
+OMML equations         : 0 (display paragraphs 0) constructs {}
+OLE objects            : 0 {}
+Hyperlinks             : 0   fields {'SEQ': 1}
+Symbols (w:sym)        : 1  symbol-font runs 1 {'Symbol': 2}
+Charts / SmartArt      : 0 / 0
+Unknown elements       : none
+------------------------------------------------------------------------------
+Images                 : 0 (0.00 MB) formats {}
+  referenced in claims : 0 parts / 0 references
+  requiring conversion : 0   max pixels 0
+------------------------------------------------------------------------------
+Claim profile          : synthetic-test (verified=False, end mode explicit_end)
+Claims section found   : True (blocks 0..6)
+Claims detected        : 2  numbers [1, 2]
+Duplicates / orphans   : none / 1
+  [ERROR  ] ORPHAN_CONTENT: 1 non-empty block(s) inside the claims section belong to no claim
+------------------------------------------------------------------------------
+Estimated claims HTML  : 0.00 MB (JSON ~0.00 MB, SQL NVARCHAR ~0.00 MB)
+Unicode (document)     : {'total_chars': 198, 'arabic_chars': 0, 'latin_chars': 151, 'digit_ascii': 3, 'digit_arabic_indic': 0, 'arabic_diacritics': 0, 'arabic_presentation_forms': 1, 'greek_chars': 0, 'math_symbols': 0, 'cjk_chars': 0, 'replacement_chars': 1, 'control_chars': 0, 'invalid_xml_chars': 0, 'private_use_chars': 2, 'unassigned_chars': 0, 'noncharacters': 0, 'bidi_controls': 0, 'suspicious_encoding_sequences': 1, 'warning_count': 2}
+------------------------------------------------------------------------------
+RISKS
+  [HIGH   ] CLAIMS_ORPHAN_CONTENT: 1 non-empty block(s) inside the claims section belong to no claim
+  [HIGH   ] ALTCHUNK_PRESENT (x1): imported foreign content (altChunk) cannot be rendered faithfully
+  [HIGH   ] TRACKED_CHANGES (x2): unaccepted tracked changes present; a policy (reject/accept view) is required before conversion
+  [HIGH   ] LINKED_EXTERNAL_IMAGES (x1): images linked to external files are not in the package and cannot be embedded
+  [HIGH   ] MISSING_RELATIONSHIP_TARGETS (x1): references to missing parts: {'id': 1}
+  [HIGH   ] SYMBOL_FONT_TEXT (x1): runs formatted with symbol fonts (e.g. Greek via 'Symbol'): characters must be mapped to Unicode
+  [HIGH   ] REPLACEMENT_CHARACTERS (x1): U+FFFD replacement characters already in source text
+  [HIGH   ] SUSPECTED_MOJIBAKE (x1): character sequences typical of mis-decoded UTF-8
+  [MEDIUM ] UNVERIFIED_PATTERN_PROFILE: claim pattern profile 'synthetic-test' has not been verified against real documents
+  [MEDIUM ] FOOTNOTE_REFERENCES (x1): footnote references (note content is outside claims)
+  [MEDIUM ] EXTERNAL_RELATIONSHIPS (x1): external non-hyperlink relationships (never fetched)
+  [MEDIUM ] SYMBOL_CHARACTERS (x1): w:sym symbol-font characters (often Private Use Area codes)
+  [MEDIUM ] PRIVATE_USE_CHARACTERS (x2): Private Use Area characters (font-specific glyphs)
+  [MEDIUM ] ARABIC_PRESENTATION_FORMS (x1): Arabic presentation-form characters (legacy shaped text; preserved, not normalized)
+  [LOW    ] COMMENTS_PRESENT (x1): review comments present (not rendered)
+Timings (s)            : {'package_scan': 0.0006, 'metadata': 0.0006, 'document_scan': 0.0013, 'media_probe': 0.0, 'total': 0.0026}
+Resources              : {'peak_rss_mb': 41.17, 'start_rss_mb': 40.52, 'avg_cpu_percent': 0.0, 'peak_cpu_percent': 0.0, 'wall_seconds': 0.0}
+
+==============================================================================
+BILINGUAL SUMMARY
+==============================================================================
+Profile                : synthetic-test (verified=False)
+Pairing                : not comparable (one document missing or rejected)
+Estimated response     : 0.00 MB (limit 100 MB, within=True)

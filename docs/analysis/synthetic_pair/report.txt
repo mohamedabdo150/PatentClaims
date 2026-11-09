@@ -1,0 +1,108 @@
+==============================================================================
+DOCX CAPABILITY REPORT  [EN]  patent_en.docx
+==============================================================================
+Status                 : ACCEPTED
+File size              : 0.01 MB   sha256 c94c5ec06933e55a…
+Uncompressed package   : 0.04 MB  (ratio 3.64:1)
+ZIP entries            : 16
+Media entries          : 10 (0.02 MB)
+Embeddings             : 1 (0.00 MB)
+document.xml           : 0.02 MB
+Relationships          : 13 {'styles': 1, 'image': 10, 'oleObject': 1, 'hyperlink': 1}
+------------------------------------------------------------------------------
+Paragraphs (all/top)   : 48 / 34
+Tables (nested)        : 3 (1), merged cells h/v 1/2
+RTL paragraphs / runs  : 0 / 0
+Drawings inline/anchor : 11 (8/3), pictures 11, groups 1, shapes 2
+VML pict/shapes/images : 1 / 2 / 2
+Text boxes             : 2
+OMML equations         : 4 (display paragraphs 1) constructs {'f': 1, 'sSup': 1, 'sSub': 1, 'd': 1, 'm': 1, 'nary': 1, 'rad': 1}
+OLE objects            : 1 {'ChemDraw.Document.6.0': 1}
+Hyperlinks             : 1   fields {}
+Symbols (w:sym)        : 0  symbol-font runs 0 {}
+Charts / SmartArt      : 0 / 0
+Unknown elements       : none
+------------------------------------------------------------------------------
+Images                 : 10 (0.02 MB) formats {'png': 3, 'jpeg': 1, 'gif': 1, 'tiff': 1, 'emf': 2, 'wmf': 1, 'svg': 1}
+  referenced in claims : 10 parts / 14 references
+  requiring conversion : 4   max pixels 44,551
+------------------------------------------------------------------------------
+Claim profile          : synthetic-test (verified=False, end mode explicit_end)
+Claims section found   : True (blocks 2..33)
+Claims detected        : 6  numbers [1, 2, 3, 4, 5, 6]
+Duplicates / orphans   : none / 0
+------------------------------------------------------------------------------
+Estimated claims HTML  : 0.25 MB (JSON ~0.25 MB, SQL NVARCHAR ~0.49 MB)
+Unicode (document)     : {'total_chars': 881, 'arabic_chars': 0, 'latin_chars': 646, 'digit_ascii': 36, 'digit_arabic_indic': 0, 'arabic_diacritics': 0, 'arabic_presentation_forms': 0, 'greek_chars': 2, 'math_symbols': 3, 'cjk_chars': 0, 'replacement_chars': 0, 'control_chars': 0, 'invalid_xml_chars': 0, 'private_use_chars': 0, 'unassigned_chars': 0, 'noncharacters': 0, 'bidi_controls': 0, 'suspicious_encoding_sequences': 0, 'warning_count': 0}
+------------------------------------------------------------------------------
+RISKS
+  [MEDIUM ] UNVERIFIED_PATTERN_PROFILE: claim pattern profile 'synthetic-test' has not been verified against real documents
+  [MEDIUM ] VECTOR_METAFILES (x3): EMF/WMF images require isolated conversion to PNG/SVG
+  [MEDIUM ] OLE_OBJECTS (x1): embedded OLE objects (e.g. ChemDraw/Equation Editor) are rendered from their preview image only
+  [MEDIUM ] OMML_EQUATIONS (x4): OMML equations require conversion; constructs used: ['d', 'f', 'm', 'nary', 'rad', 'sSub', 'sSup']
+  [MEDIUM ] FLOATING_DRAWINGS (x3): floating/anchored drawings: position is approximated in flow layout
+  [MEDIUM ] DRAWINGML_SHAPES (x3): DrawingML shapes/groups/canvases require rendering to an image to preserve grouping
+  [LOW    ] TIFF_IMAGES (x1): TIFF images must be converted to PNG
+  [LOW    ] TEXT_BOXES (x2): text boxes (rendered as inline blocks)
+Timings (s)            : {'package_scan': 0.0006, 'metadata': 0.0007, 'document_scan': 0.0056, 'media_probe': 0.0247, 'total': 0.0319}
+Resources              : {'peak_rss_mb': 45.38, 'start_rss_mb': 40.51, 'avg_cpu_percent': 92.7, 'peak_cpu_percent': 92.7, 'wall_seconds': 0.03}
+
+==============================================================================
+DOCX CAPABILITY REPORT  [AR]  patent_ar.docx
+==============================================================================
+Status                 : ACCEPTED
+File size              : 0.01 MB   sha256 ff6e61f0e7cf55ed…
+Uncompressed package   : 0.05 MB  (ratio 3.86:1)
+ZIP entries            : 16
+Media entries          : 10 (0.02 MB)
+Embeddings             : 1 (0.00 MB)
+document.xml           : 0.02 MB
+Relationships          : 13 {'styles': 1, 'image': 10, 'oleObject': 1, 'hyperlink': 1}
+------------------------------------------------------------------------------
+Paragraphs (all/top)   : 48 / 34
+Tables (nested)        : 3 (1), merged cells h/v 1/2
+RTL paragraphs / runs  : 44 / 47
+Drawings inline/anchor : 11 (8/3), pictures 11, groups 1, shapes 2
+VML pict/shapes/images : 1 / 2 / 2
+Text boxes             : 2
+OMML equations         : 4 (display paragraphs 1) constructs {'f': 1, 'sSup': 1, 'sSub': 1, 'd': 1, 'm': 1, 'nary': 1, 'rad': 1}
+OLE objects            : 1 {'ChemDraw.Document.6.0': 1}
+Hyperlinks             : 1   fields {}
+Symbols (w:sym)        : 0  symbol-font runs 0 {}
+Charts / SmartArt      : 0 / 0
+Unknown elements       : none
+------------------------------------------------------------------------------
+Images                 : 10 (0.02 MB) formats {'png': 3, 'jpeg': 1, 'gif': 1, 'tiff': 1, 'emf': 2, 'wmf': 1, 'svg': 1}
+  referenced in claims : 10 parts / 14 references
+  requiring conversion : 4   max pixels 44,551
+------------------------------------------------------------------------------
+Claim profile          : synthetic-test (verified=False, end mode explicit_end)
+Claims section found   : True (blocks 2..33)
+Claims detected        : 6  numbers [1, 2, 3, 4, 5, 6]
+Duplicates / orphans   : none / 0
+------------------------------------------------------------------------------
+Estimated claims HTML  : 0.25 MB (JSON ~0.26 MB, SQL NVARCHAR ~0.50 MB)
+Unicode (document)     : {'total_chars': 761, 'arabic_chars': 507, 'latin_chars': 45, 'digit_ascii': 28, 'digit_arabic_indic': 7, 'arabic_diacritics': 14, 'arabic_presentation_forms': 0, 'greek_chars': 2, 'math_symbols': 3, 'cjk_chars': 0, 'replacement_chars': 0, 'control_chars': 0, 'invalid_xml_chars': 0, 'private_use_chars': 0, 'unassigned_chars': 0, 'noncharacters': 0, 'bidi_controls': 1, 'suspicious_encoding_sequences': 0, 'warning_count': 0}
+------------------------------------------------------------------------------
+RISKS
+  [MEDIUM ] UNVERIFIED_PATTERN_PROFILE: claim pattern profile 'synthetic-test' has not been verified against real documents
+  [MEDIUM ] VECTOR_METAFILES (x3): EMF/WMF images require isolated conversion to PNG/SVG
+  [MEDIUM ] OLE_OBJECTS (x1): embedded OLE objects (e.g. ChemDraw/Equation Editor) are rendered from their preview image only
+  [MEDIUM ] OMML_EQUATIONS (x4): OMML equations require conversion; constructs used: ['d', 'f', 'm', 'nary', 'rad', 'sSub', 'sSup']
+  [MEDIUM ] FLOATING_DRAWINGS (x3): floating/anchored drawings: position is approximated in flow layout
+  [MEDIUM ] DRAWINGML_SHAPES (x3): DrawingML shapes/groups/canvases require rendering to an image to preserve grouping
+  [LOW    ] TIFF_IMAGES (x1): TIFF images must be converted to PNG
+  [LOW    ] TEXT_BOXES (x2): text boxes (rendered as inline blocks)
+Timings (s)            : {'package_scan': 0.0002, 'metadata': 0.0005, 'document_scan': 0.0061, 'media_probe': 0.0014, 'total': 0.0084}
+Resources              : {'peak_rss_mb': 45.84, 'start_rss_mb': 45.38, 'avg_cpu_percent': 114.5, 'peak_cpu_percent': 114.5, 'wall_seconds': 0.01}
+
+==============================================================================
+BILINGUAL SUMMARY
+==============================================================================
+Profile                : synthetic-test (verified=False)
+Claims EN / AR         : 6 / 6 (matched by number: 6)
+Missing in Arabic      : none
+Missing in English     : none
+Duplicates EN / AR     : none / none
+Pairable               : True
+Estimated response     : 0.51 MB (limit 100 MB, within=True)

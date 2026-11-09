@@ -1,0 +1,10 @@
+# Development override: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  patent-converter:
+    environment:
+      PATENT_CONFIG_FILE: /app/config/app.dev.yaml
+      PATENT__STORAGE__TEMPORARY_DIRECTORY: /data/patent-processing
+      WORKERS: 1
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 4g }

@@ -1,0 +1,44 @@
+# Single-node deployment. For the two-node production layout run this on each
+# node behind a load balancer that health-checks /ready (see docs/deployment.md).
+services:
+  patent-converter:
+    build: .
+    image: patent-converter:0.2.0
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      PATENT_CONFIG_FILE: ${PATENT_CONFIG_FILE:-/app/config/app.yaml}
+      WORKERS: ${WORKERS:-2}
+    volumes:
+      - patent-processing:/data/patent-processing
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPU_LIMIT:-14}"
+          memory: "${MEMORY_LIMIT:-56g}"
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options: { max-size: "50m", max-file: "5" }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  patent-processing:
+    # Production: bind to the node's NVMe volume, e.g.
+    # driver_opts: { type: none, o: bind, device: /mnt/nvme/patent-processing }

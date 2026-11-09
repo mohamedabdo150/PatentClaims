@@ -1,0 +1,366 @@
+{
+  "file": {
+    "name": "edge_cases_en.docx",
+    "language": "en",
+    "sizeBytes": 2447,
+    "sha256": "09be0cfa6978bafc86a4ef25852fcc6dcabb766eca752a59669e67d4401cba24"
+  },
+  "status": "accepted",
+  "package": {
+    "compressed_size": 2447,
+    "uncompressed_size": 5126,
+    "entry_count": 5,
+    "overall_compression_ratio": 2.09,
+    "max_entry_compression_ratio": 0.0,
+    "max_ratio_entry": null,
+    "document_xml_part": null,
+    "document_xml_size": 0,
+    "media_entry_count": 0,
+    "media_total_size": 0,
+    "embedding_entry_count": 0,
+    "embedding_total_size": 0,
+    "xml_total_size": 5126,
+    "has_vba_project": false,
+    "largest_entries": [
+      {
+        "name": "word/document.xml",
+        "size": 2991,
+        "compressedSize": 990
+      },
+      {
+        "name": "[Content_Types].xml",
+        "size": 1048,
+        "compressedSize": 310
+      },
+      {
+        "name": "word/_rels/document.xml.rels",
+        "size": 432,
+        "compressedSize": 207
+      },
+      {
+        "name": "word/styles.xml",
+        "size": 375,
+        "compressedSize": 196
+      },
+      {
+        "name": "_rels/.rels",
+        "size": 280,
+        "compressedSize": 162
+      }
+    ],
+    "findings": [],
+    "accepted": true
+  },
+  "ooxml": {
+    "mainDocumentPart": "word/document.xml",
+    "mainContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+    "strict": false,
+    "documentXmlBytes": 2991,
+    "relationshipCount": 2,
+    "relationshipTypes": {
+      "styles": 1,
+      "image": 1
+    },
+    "externalRelationships": {
+      "image": 1
+    },
+    "externalNonHyperlinkRelationships": 1,
+    "unsafeRelationships": 0,
+    "headers": 0,
+    "footers": 0,
+    "headerFooterImages": 0,
+    "hasFootnotes": false,
+    "hasEndnotes": false
+  },
+  "structure": {
+    "topLevelBlocks": {
+      "paragraph": 6,
+      "altchunk": 1,
+      "final_section_properties": 1
+    },
+    "counts": {
+      "altchunks": 1,
+      "blips": 1,
+      "comment_references": 1,
+      "drawing_inline": 1,
+      "drawings": 1,
+      "fields_complex": 1,
+      "footnote_references": 1,
+      "linked_only_images": 1,
+      "paragraphs": 6,
+      "pictures": 1,
+      "runs": 21,
+      "symbol_font_runs": 1,
+      "symbols": 1,
+      "tracked_deletions": 1,
+      "tracked_insertions": 1
+    },
+    "ommlConstructs": {},
+    "fieldTypes": {
+      "SEQ": 1
+    },
+    "symbolFonts": {
+      "Symbol": 2
+    },
+    "oleProgIds": {},
+    "unknownElements": {},
+    "relationshipReferences": 2,
+    "missingRelationshipTargets": {
+      "id": 1
+    }
+  },
+  "numbering": {
+    "numberedParagraphs": 0,
+    "claimsNumberedByWordNumbering": 0,
+    "unsupportedFormats": {}
+  },
+  "claims": {
+    "profile": "synthetic-test",
+    "profileVerified": false,
+    "endMode": "explicit_end",
+    "sectionFound": true,
+    "sectionStartBlock": 0,
+    "sectionEndBlock": 6,
+    "count": 2,
+    "numbers": [
+      "1",
+      "2"
+    ],
+    "duplicates": [],
+    "orphanBlocks": 1,
+    "issues": [
+      {
+        "code": "ORPHAN_CONTENT",
+        "severity": "error",
+        "message": "1 non-empty block(s) inside the claims section belong to no claim",
+        "block_index": null,
+        "claim_number": null,
+        "details": {
+          "blockIndexes": [
+            5
+          ]
+        }
+      }
+    ],
+    "perClaim": [
+      {
+        "number": "1",
+        "numberRaw": "1",
+        "numberFromNumbering": false,
+        "startBlock": 1,
+        "endBlock": 1,
+        "blockCount": 1,
+        "closedBy": "end_marker",
+        "paragraphs": 1,
+        "tables": 0,
+        "imageReferences": 0,
+        "drawings": 0,
+        "vmlPictures": 0,
+        "equations": 0,
+        "oleObjects": 0,
+        "textboxes": 0,
+        "symbols": 1,
+        "textChars": 99,
+        "textUtf8Bytes": 107,
+        "mediaParts": [],
+        "unicodeWarnings": 1,
+        "estimatedHtmlBytes": 331
+      },
+      {
+        "number": "2",
+        "numberRaw": "2",
+        "numberFromNumbering": false,
+        "startBlock": 2,
+        "endBlock": 4,
+        "blockCount": 3,
+        "closedBy": "end_marker",
+        "paragraphs": 3,
+        "tables": 0,
+        "imageReferences": 0,
+        "drawings": 1,
+        "vmlPictures": 0,
+        "equations": 0,
+        "oleObjects": 0,
+        "textboxes": 0,
+        "symbols": 0,
+        "textChars": 80,
+        "textUtf8Bytes": 82,
+        "mediaParts": [],
+        "unicodeWarnings": 1,
+        "estimatedHtmlBytes": 269
+      }
+    ]
+  },
+  "unicode": {
+    "document": {
+      "total_chars": 198,
+      "arabic_chars": 0,
+      "latin_chars": 151,
+      "digit_ascii": 3,
+      "digit_arabic_indic": 0,
+      "arabic_diacritics": 0,
+      "arabic_presentation_forms": 1,
+      "greek_chars": 0,
+      "math_symbols": 0,
+      "cjk_chars": 0,
+      "replacement_chars": 1,
+      "control_chars": 0,
+      "invalid_xml_chars": 0,
+      "private_use_chars": 2,
+      "unassigned_chars": 0,
+      "noncharacters": 0,
+      "bidi_controls": 0,
+      "suspicious_encoding_sequences": 1,
+      "warning_count": 2
+    },
+    "claims": {
+      "total_chars": 179,
+      "arabic_chars": 0,
+      "latin_chars": 134,
+      "digit_ascii": 3,
+      "digit_arabic_indic": 0,
+      "arabic_diacritics": 0,
+      "arabic_presentation_forms": 1,
+      "greek_chars": 0,
+      "math_symbols": 0,
+      "cjk_chars": 0,
+      "replacement_chars": 1,
+      "control_chars": 0,
+      "invalid_xml_chars": 0,
+      "private_use_chars": 2,
+      "unassigned_chars": 0,
+      "noncharacters": 0,
+      "bidi_controls": 0,
+      "suspicious_encoding_sequences": 1,
+      "warning_count": 2
+    }
+  },
+  "media": {
+    "count": 0,
+    "totalBytes": 0,
+    "formats": {},
+    "referencedByMainDocument": 0,
+    "unreferencedByMainDocument": 0,
+    "referencedInClaims": 0,
+    "imageReferencesInClaims": 0,
+    "requiringConversion": 0,
+    "maxPixels": 0,
+    "images": []
+  },
+  "estimates": {
+    "method": "heuristic: text*markup_factor + base64(embedded/converted images) + equations*constant",
+    "claimsTextChars": 179,
+    "claimsTextUtf8Bytes": 189,
+    "claimsEmbeddedMediaBytes": 0,
+    "claimsEmbeddedMediaBase64Bytes": 0,
+    "claimsEquations": 0,
+    "estimatedHtmlBytes": 600,
+    "estimatedJsonContributionBytes": 618,
+    "estimatedSqlNvarcharBytes": 1180,
+    "maxResponseBytes": 104857600
+  },
+  "timingsSeconds": {
+    "package_scan": 0.0006,
+    "metadata": 0.0006,
+    "document_scan": 0.0013,
+    "media_probe": 0.0,
+    "total": 0.0026
+  },
+  "risks": [
+    {
+      "code": "CLAIMS_ORPHAN_CONTENT",
+      "severity": "high",
+      "message": "1 non-empty block(s) inside the claims section belong to no claim"
+    },
+    {
+      "code": "ALTCHUNK_PRESENT",
+      "severity": "high",
+      "message": "imported foreign content (altChunk) cannot be rendered faithfully",
+      "count": 1
+    },
+    {
+      "code": "TRACKED_CHANGES",
+      "severity": "high",
+      "message": "unaccepted tracked changes present; a policy (reject/accept view) is required before conversion",
+      "count": 2
+    },
+    {
+      "code": "LINKED_EXTERNAL_IMAGES",
+      "severity": "high",
+      "message": "images linked to external files are not in the package and cannot be embedded",
+      "count": 1
+    },
+    {
+      "code": "MISSING_RELATIONSHIP_TARGETS",
+      "severity": "high",
+      "message": "references to missing parts: {'id': 1}",
+      "count": 1
+    },
+    {
+      "code": "SYMBOL_FONT_TEXT",
+      "severity": "high",
+      "message": "runs formatted with symbol fonts (e.g. Greek via 'Symbol'): characters must be mapped to Unicode",
+      "count": 1
+    },
+    {
+      "code": "REPLACEMENT_CHARACTERS",
+      "severity": "high",
+      "message": "U+FFFD replacement characters already in source text",
+      "count": 1
+    },
+    {
+      "code": "SUSPECTED_MOJIBAKE",
+      "severity": "high",
+      "message": "character sequences typical of mis-decoded UTF-8",
+      "count": 1
+    },
+    {
+      "code": "UNVERIFIED_PATTERN_PROFILE",
+      "severity": "medium",
+      "message": "claim pattern profile 'synthetic-test' has not been verified against real documents"
+    },
+    {
+      "code": "FOOTNOTE_REFERENCES",
+      "severity": "medium",
+      "message": "footnote references (note content is outside claims)",
+      "count": 1
+    },
+    {
+      "code": "EXTERNAL_RELATIONSHIPS",
+      "severity": "medium",
+      "message": "external non-hyperlink relationships (never fetched)",
+      "count": 1
+    },
+    {
+      "code": "SYMBOL_CHARACTERS",
+      "severity": "medium",
+      "message": "w:sym symbol-font characters (often Private Use Area codes)",
+      "count": 1
+    },
+    {
+      "code": "PRIVATE_USE_CHARACTERS",
+      "severity": "medium",
+      "message": "Private Use Area characters (font-specific glyphs)",
+      "count": 2
+    },
+    {
+      "code": "ARABIC_PRESENTATION_FORMS",
+      "severity": "medium",
+      "message": "Arabic presentation-form characters (legacy shaped text; preserved, not normalized)",
+      "count": 1
+    },
+    {
+      "code": "COMMENTS_PRESENT",
+      "severity": "low",
+      "message": "review comments present (not rendered)",
+      "count": 1
+    }
+  ],
+  "resources": {
+    "peak_rss_mb": 41.17,
+    "start_rss_mb": 40.52,
+    "avg_cpu_percent": 0.0,
+    "peak_cpu_percent": 0.0,
+    "wall_seconds": 0.0
+  }
+}
