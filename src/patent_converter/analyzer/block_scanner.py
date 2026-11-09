@@ -334,13 +334,13 @@ def scan_block(root: etree._Element) -> BlockStats:
     return stats
 
 
-def paragraph_text(p: etree._Element) -> str:
-    """Logical text of a top-level paragraph for boundary matching.
+def paragraph_segments(p: etree._Element) -> list[tuple[etree._Element | None, str]]:
+    """Logical text of a paragraph as (source w:t/m:t element or None, text) segments.
 
     Excludes text boxes, deleted text, field instructions and untaken
     AlternateContent branches. Field *results* (e.g. SEQ numbers) are included.
     """
-    out: list[str] = []
+    out: list[tuple[etree._Element | None, str]] = []
     stack: list[etree._Element] = [p]
     txbx = qn(W, "txbxContent")
     while stack:
@@ -355,19 +355,23 @@ def paragraph_text(p: etree._Element) -> str:
             continue
         if tag == _T or tag == _MT:
             if el.text:
-                out.append(el.text)
+                out.append((el, el.text))
         elif tag in (qn(W, "tab"), qn(W, "ptab")):
-            out.append("\t")
+            out.append((None, "\t"))
         elif tag in (qn(W, "br"), qn(W, "cr")):
-            out.append("\n")
+            out.append((None, "\n"))
         elif tag == qn(W, "noBreakHyphen"):
-            out.append("‑")
+            out.append((None, "\u2011"))
         elif tag == qn(W, "sym"):
             try:
-                out.append(chr(int(el.get(qn(W, "char"), ""), 16)))
+                out.append((None, chr(int(el.get(qn(W, "char"), ""), 16))))
             except ValueError:
                 pass
         elif tag.endswith("Pr") and tag.startswith("{" + W + "}"):
             continue
         stack.extend(reversed(el))
-    return "".join(out)
+    return out
+
+
+def paragraph_text(p: etree._Element) -> str:
+    return "".join(t for _el, t in paragraph_segments(p))

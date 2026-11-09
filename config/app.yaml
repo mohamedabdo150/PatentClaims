@@ -2,7 +2,7 @@
 # validated by benchmarking with representative patent documents.
 environment: production
 claim_patterns_file: claim_patterns.yaml
-default_config_profile: example
+default_config_profile: marker
 
 processing:
   max_english_file_size_mb: 100
@@ -53,6 +53,7 @@ conversion:
   raster_dpi: 192                  # rasterized drawings/metafiles/equation fallbacks (2x CSS pixels)
   libreoffice_timeout_seconds: 600 # per LibreOffice batch (process tree killed on timeout)
   libreoffice_batch_size: 100
+  libreoffice_parallelism: 4      # concurrent LibreOffice processes per job (raise on 16 vCPU nodes)
   prefer_svg: true                 # use sanitized SVG when Word stored one (asvg:svgBlip)
   max_asset_mb: 200
 

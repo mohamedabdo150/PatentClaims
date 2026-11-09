@@ -7,13 +7,14 @@ decision.
 ## Functional
 | Item | Status | Evidence / next step |
 |---|---|---|
-| Claim extraction EN/AR with configurable patterns | 🟡 | 120 automated tests; **no real patent tested** |
-| Verified production pattern profile | ⛔ | needs real documents: `scripts/analyze_docx.py` |
+| Claim extraction EN/AR with configurable patterns | 🟡 | 124 automated tests + customer sample set (`docs/real_document_results.md`) |
+| Verified production pattern profile | 🟡 | `marker` profile derived from and verified on 7 customer documents; widen the sample set (more Arabic documents) |
+| Arabic sample consistency | ⛔ | customer: fix claim 8/9/11 number placement in `Claims - Arabic.docx` |
 | Number-based pairing, exact response contract | ✅ | `tests/integration/test_api.py::test_convert_success_contract` |
 | Text, formatting, RTL, tables, images, drawings, equations | 🟡 | synthetic fixtures + visual review sample `docs/visual/` |
 | All-or-nothing semantics (no partial 200) | ✅ | integrity invariants + error tests |
 | Unsupported content fails explicitly | ✅ | `test_unsupported_content_fails_explicitly` |
-| Real-document regression suite | ⛔ | add anonymised/approved real patents to `tests/regression/` |
+| Real-document regression suite | 🟡 | `tests/regression/test_customer_samples.py` (opt-in via `PATENT_SAMPLES_DIR`; documents stay outside the public repo) |
 
 ## Integration
 | Item | Status | Evidence / next step |

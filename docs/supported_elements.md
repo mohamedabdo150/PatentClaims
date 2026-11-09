@@ -5,8 +5,10 @@ Base64 image (as-is or converted), **Raster** = original XML rendered by isolate
 LibreOffice to PNG with exact extent, **Error** = conversion fails with
 `UNSUPPORTED_CONTENT` (fail-safe, never dropped silently).
 
-All rows are covered by automated tests on synthetic documents. Real-document
-coverage is pending.
+All rows are covered by automated tests on synthetic documents. The customer
+sample set (8 documents: English claims with Word numbering, ChemDraw OLE objects,
+778 EMF chemical structures, and an Arabic document converted from PDF) has also been
+converted; see [real_document_results.md](real_document_results.md).
 
 | Element | OOXML | Output |
 |---|---|---|
@@ -44,6 +46,8 @@ coverage is pending.
 | Charts / SmartArt | `c:chart`, `dgm:relIds` | Error |
 | altChunk / subDoc / ActiveX | | Error |
 | Unknown elements | | Error if they carry text or images; ignored with a warning if empty |
+| Claim markers `{start}` / `{next}` | text (own paragraph or inline, also split across runs) | boundaries only; removed from the output |
+| Layout tables containing markers (PDF conversions) | `w:tbl` | linearized cell by cell into the claims (warning); data tables inside claims stay tables |
 
 ## Explicitly unsupported (rejected before processing)
 ISO/IEC 29500 Strict documents, macro-enabled documents, password-protected

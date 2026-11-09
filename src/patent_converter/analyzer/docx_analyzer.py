@@ -32,6 +32,7 @@ from ..ooxml.numbering import NumberingResolver
 from ..ooxml.package_reader import DocxPackage, PackageError
 from ..ooxml.xml_parser import UnsafeXmlError, iterparse_secure, parse_bytes
 from ..unicode_integrity.checks import UnicodeReport, analyze_text
+from ..extraction.block_stream import iter_blocks
 from .block_scanner import BlockStats, paragraph_text, scan_block
 from .capability_report import build_estimates, evaluate_risks
 from .image_probe import ImageInfo, configure_pillow_limit, probe_image
@@ -192,18 +193,6 @@ class DocxAnalyzer:
         timings["media_probe"] = time.perf_counter() - t
         report["estimates"] = build_estimates(report, self.settings)
 
-    def _iter_blocks(self, el: etree._Element):
-        """Yield content blocks for a top-level body element (expands sdt/customXml)."""
-        tag = el.tag
-        if tag in (_W_SDT, _W_CUSTOMXML):
-            container = el.find(_W_SDT_CONTENT) if tag == _W_SDT else el
-            if container is not None:
-                for child in container:
-                    if isinstance(child.tag, str) and child.tag != qn(W, "sdtPr"):
-                        yield from self._iter_blocks(child)
-            return
-        yield el
-
     def _scan_document(self, pkg, main_part, rels, language, resolver, report) -> None:
         patterns = self.profile.for_language(language)
         detector = ClaimBoundaryDetector(patterns, self.profile.validation)
@@ -216,6 +205,7 @@ class DocxAnalyzer:
         auto_numbered = 0
         claims: dict[int, _ClaimAccumulator] = {}
         claim_order: list[int] = []
+        layout_stats: dict = {}
         current: _ClaimAccumulator | None = None
         index = 0
         a_cfg = self.settings.analysis
@@ -231,7 +221,7 @@ class DocxAnalyzer:
                     continue
                 if body_depth is not None and depth == body_depth + 1:
                     self.deadline.check()
-                    for block_el in self._iter_blocks(el):
+                    for block_el in iter_blocks(el, patterns, layout_stats):
                         tag = block_el.tag
                         if tag in _NON_CONTENT_BODY or tag == _W_SECTPR or not isinstance(tag, str):
                             if tag == _W_SECTPR:
@@ -356,6 +346,7 @@ class DocxAnalyzer:
             "numbers": result.claim_numbers,
             "duplicates": result.duplicate_numbers,
             "orphanBlocks": len(result.orphan_blocks),
+            "layoutTablesLinearized": layout_stats.get("linearized_tables", 0),
             "issues": [vars(i) for i in result.issues],
             "perClaim": per_claim,
         }

@@ -131,6 +131,7 @@ class ConversionSettings(BaseModel):
     raster_dpi: int = Field(192, ge=72, le=600)          # 2x CSS pixels
     libreoffice_timeout_seconds: int = 600               # per batch
     libreoffice_batch_size: int = 100
+    libreoffice_parallelism: int = Field(4, ge=1, le=32)  # concurrent LibreOffice processes per job
     prefer_svg: bool = True                              # use sanitized asvg:svgBlip when present
     max_asset_mb: float = 200
 

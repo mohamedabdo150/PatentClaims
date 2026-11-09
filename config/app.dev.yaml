@@ -1,7 +1,7 @@
 # Development configuration: local temp dir, auth disabled, readable logs.
 environment: development
 claim_patterns_file: claim_patterns.yaml
-default_config_profile: example
+default_config_profile: marker
 
 storage:
   temporary_directory: ./.data/patent-processing

@@ -18,7 +18,7 @@ from ..config.claim_patterns import CompiledProfile
 from ..config.settings import Settings
 from ..extraction.claim_detector import BlockInfo, ClaimBoundaryDetector, Role
 from ..images.assets import AssetRegistry
-from ..models.document_model import Claim
+from ..models.document_model import Claim, ContentIssue
 from ..ooxml.namespaces import RT_NUMBERING, RT_STYLES, W, qn
 from ..ooxml.numbering import NumberingResolver
 from ..ooxml.package_reader import DocxPackage
@@ -26,6 +26,7 @@ from ..ooxml.styles import StyleResolver
 from ..ooxml.xml_parser import iterparse_secure, parse_bytes
 from ..security.resource_limits import Deadline
 from ..analyzer.block_scanner import paragraph_text
+from .block_stream import iter_blocks, strip_markers
 from .model_builder import BuildContext, ContentPolicy, ModelBuilder, count_notes
 
 _W_BODY = qn(W, "body")
@@ -46,18 +47,6 @@ class ExtractedDocument:
     registry: AssetRegistry
     package_path: Path
     rels: dict = field(default_factory=dict)
-
-
-def _iter_blocks(el: etree._Element):
-    tag = el.tag
-    if tag in (qn(W, "sdt"), qn(W, "customXml")):
-        container = el.find(qn(W, "sdtContent")) if tag == qn(W, "sdt") else el
-        if container is not None:
-            for child in container:
-                if isinstance(child.tag, str) and child.tag != qn(W, "sdtPr"):
-                    yield from _iter_blocks(child)
-        return
-    yield el
 
 
 def extract_claims(
@@ -84,7 +73,10 @@ def extract_claims(
                     styles.load(root)
         ctx = BuildContext(rels=rels, styles=styles, registry=registry, language=language, policy=policy)
         builder = ModelBuilder(ctx)
-        detector = ClaimBoundaryDetector(profile.for_language(language), profile.validation)
+        patterns = profile.for_language(language)
+        detector = ClaimBoundaryDetector(patterns, profile.validation)
+        marker_res = [r for r in (patterns.separator,) if r is not None] if patterns.config.strip_markers else []
+        layout_stats: dict = {}
         current: Claim | None = None
         index = 0
         with pkg.open_part(main_part, sec.max_document_xml_bytes) as stream:
@@ -98,7 +90,7 @@ def extract_claims(
                     continue
                 if body_depth is not None and depth == body_depth + 1:
                     deadline.check()
-                    for block in _iter_blocks(el):
+                    for block in iter_blocks(el, patterns, layout_stats):
                         tag = block.tag
                         if not isinstance(tag, str) or tag in _NON_CONTENT or tag == _W_SECTPR:
                             continue
@@ -120,6 +112,13 @@ def extract_claims(
                             claims.append(current)
                         if role in (Role.CLAIM_START, Role.CLAIM_BODY) and current is not None:
                             ctx.claim = current
+                            if kind == "paragraph":
+                                for rx in marker_res:
+                                    block, removed, clean = strip_markers(block, rx)
+                                    current.counters.text_chars_removed += removed
+                                    if not clean:
+                                        ctx.issue("MARKER_OVERLAPS_CONTENT", "error",
+                                                  "claim marker overlaps non-text content and cannot be removed")
                             current.blocks.extend(builder.blocks([block]))
                         else:
                             count_notes(block, ctx)
@@ -134,5 +133,13 @@ def extract_claims(
                 if el.tag == _W_BODY:
                     body_depth = None
                 depth -= 1
-        detector.finish(settings.processing.max_claims_per_document)
+        result = detector.finish(settings.processing.max_claims_per_document)
+        # In separator mode the number is only known once a claim is closed.
+        for model, detected in zip(claims, result.claims):
+            model.number, model.number_raw = detected.number, detected.number_raw
+        if layout_stats.get("linearized_tables"):
+            for model in claims:
+                model.issues.append(ContentIssue("LAYOUT_TABLE_LINEARIZED", "warning",
+                                                 "claims inside a marker layout table were linearized"))
+                break
     return ExtractedDocument(language=language, claims=claims, registry=registry, package_path=path, rels=rels)

@@ -4,6 +4,9 @@
 |---|---|
 | Container exits: `production with auth_enabled requires ... api_key_sha256` | Set `PATENT__SECURITY__API_KEY_SHA256='["<sha256-hex>"]'`. |
 | `CLAIM_EXTRACTION_FAILED` + `CLAIMS_SECTION_NOT_FOUND` / `NO_CLAIMS_DETECTED` | The pattern profile does not match the document. Run `scripts/analyze_docx.py --samples` (output contains patent text, so treat it as confidential) and tune `config/claim_patterns.yaml`. |
+| `MISSING_CLAIM_NUMBER` | A `{start}`/`{next}` block contains no claim number. Typical for PDF conversions: the number paragraph sits after the `{next}` marker. Move the marker after the number, or add the number. `details` gives the block index. |
+| `AMBIGUOUS_CLAIM_NUMBER` | Two different numbers in one claim block: usually a missing `{next}` between two claims, or a displaced number from the previous claim. |
+| `AMBIGUOUS_MARKER` | `{next}` in the middle of a paragraph; split the paragraph so the marker is at its start or end. |
 | `ORPHAN_CONTENT` | Content inside the claims section matched no claim, often because an explicit end pattern fired early. Prefer `claim_end_pattern: null` (next-start mode). |
 | `UNCLOSED_CLAIM` | Explicit-end mode and a claim's last paragraph does not match the end pattern. |
 | `CLAIM_PAIRING_MISMATCH` | The claim number sets differ. `details` lists the missing/duplicate numbers per language. |

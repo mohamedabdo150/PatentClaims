@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,13 +143,15 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
 
 
 class SnippetRenderer:
-    def __init__(self, workdir: Path, soffice: str, pdftocairo: str, dpi: int, timeout: int, batch_size: int):
+    def __init__(self, workdir: Path, soffice: str, pdftocairo: str, dpi: int, timeout: int, batch_size: int,
+                 parallelism: int = 1):
         self.workdir = workdir
         self.soffice = soffice
         self.pdftocairo = pdftocairo
         self.dpi = dpi
         self.timeout = timeout
         self.batch_size = batch_size
+        self.parallelism = max(1, parallelism)
         (workdir / "in").mkdir(parents=True, exist_ok=True)
         (workdir / "pdf").mkdir(exist_ok=True)
         (workdir / "png").mkdir(exist_ok=True)
@@ -170,50 +173,62 @@ class SnippetRenderer:
             except Exception as exc:  # noqa: BLE001
                 results[job.key] = f"SNIPPET_BUILD_FAILED:{type(exc).__name__}"
         keys = list(inputs)
-        for start in range(0, len(keys), self.batch_size):
-            deadline_check()
-            batch = keys[start:start + self.batch_size]
-            profile = (self.workdir / f"profile{start}").resolve()
+        # Distribute snippets round-robin so every batch gets a similar mix of work.
+        n_batches = max(1, -(-len(keys) // self.batch_size))
+        n_batches = max(n_batches, min(self.parallelism, len(keys)))
+        batches = [keys[i::n_batches] for i in range(n_batches)]
+
+        def convert(idx_batch: tuple[int, list[str]]) -> list[str]:
+            idx, batch = idx_batch
+            profile = (self.workdir / f"profile{idx}").resolve()
+            outdir = self.workdir / "pdf"
             cmd = [self.soffice, "--headless", "--norestore", "--nolockcheck", "--nodefault", "--nologo",
                    f"-env:UserInstallation=file://{profile}", "--convert-to", "pdf",
-                   "--outdir", str(self.workdir / "pdf"), *[str(inputs[k]) for k in batch]]
+                   "--outdir", str(outdir), *[str(inputs[k]) for k in batch]]
             try:
-                run_isolated(cmd, self.workdir, self.timeout)
+                run_isolated(cmd, self.workdir / f"run{idx}", self.timeout)
             except ConverterTimeout:
-                for k in batch:
-                    results[k] = "LIBREOFFICE_TIMEOUT"
-                continue
-            shutil.rmtree(profile, ignore_errors=True)
-        jobs_by_key = {j.key: j for j in jobs}
-        if CALIBRATION_KEY in keys:
-            keys.remove(CALIBRATION_KEY)
-            keys.insert(0, CALIBRATION_KEY)
-        for key in keys:
-            if key in results:
-                continue
+                return batch
+            finally:
+                shutil.rmtree(profile, ignore_errors=True)
+            return []
+
+        with ThreadPoolExecutor(max_workers=self.parallelism) as pool:
             deadline_check()
+            for timed_out in pool.map(convert, list(enumerate(batches))):
+                for k in timed_out:
+                    results[k] = "LIBREOFFICE_TIMEOUT"
+        jobs_by_key = {j.key: j for j in jobs}
+        def rasterize(key: str) -> tuple[str, Path | str]:
             pdf = self.workdir / "pdf" / f"{key}.pdf"
             if not pdf.exists():
-                results[key] = "LIBREOFFICE_CONVERSION_FAILED"
-                continue
+                return key, "LIBREOFFICE_CONVERSION_FAILED"
             base = self.workdir / "png" / key
             try:
-                proc = run_isolated([self.pdftocairo, "-png", "-r", str(self.dpi), "-f", "1", "-l", "1", "-singlefile",
-                                     str(pdf), str(base)], self.workdir, 120)
+                proc = run_isolated([self.pdftocairo, "-png", "-r", str(self.dpi), "-f", "1", "-l", "1",
+                                     "-singlefile", str(pdf), str(base)], self.workdir / "raster", 120)
             except ConverterError:
-                results[key] = "RASTERIZE_TIMEOUT"
-                continue
+                return key, "RASTERIZE_TIMEOUT"
             png = base.with_suffix(".png")
             if proc.returncode != 0 or not png.exists():
-                results[key] = "RASTERIZE_FAILED"
-                continue
-            if key == CALIBRATION_KEY:
-                self.origin = self._calibrate(png)
-                continue
-            try:
-                results[key] = self._crop(png, jobs_by_key[key])
-            except ConverterError as exc:
-                results[key] = str(exc)
+                return key, "RASTERIZE_FAILED"
+            return key, png
+
+        pending = [k for k in keys if k not in results]
+        if CALIBRATION_KEY in pending:  # the calibration must be measured before any exact crop
+            _, cal = rasterize(CALIBRATION_KEY)
+            self.origin = self._calibrate(cal) if isinstance(cal, Path) else None
+            pending.remove(CALIBRATION_KEY)
+        deadline_check()
+        with ThreadPoolExecutor(max_workers=self.parallelism) as pool:
+            for key, res in pool.map(rasterize, pending):
+                if isinstance(res, str):
+                    results[key] = res
+                    continue
+                try:
+                    results[key] = self._crop(res, jobs_by_key[key])
+                except ConverterError as exc:
+                    results[key] = str(exc)
         results.pop(CALIBRATION_KEY, None)
         return results
 

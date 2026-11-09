@@ -16,17 +16,19 @@ Any condition that would make the result incomplete (unsupported content, image
 conversion failure, pairing mismatch, output limit, timeout) returns a structured
 error instead — never a partial `200`.
 
-> **Status:** Phases 1–6 implemented and verified on synthetic documents.
+> **Status:** Phases 1–6 implemented. Verified on synthetic documents **and on
+> the customer sample set** (4 English claims documents converted completely,
+> including 778 EMF chemical structures; the Arabic sample is rejected for
+> documented source defects); see [docs/real_document_results.md](docs/real_document_results.md).
 > Phase 7 (deployment) is implemented, but not on the target nodes. Phase 8
 > (OutSystems, SQL Server and production acceptance) needs your environment.
-> **Real patent documents have not been tested yet.** See
-> [docs/production_readiness.md](docs/production_readiness.md).
+> See [docs/production_readiness.md](docs/production_readiness.md).
 
 ## Highlights
 
 | Area | What is implemented |
 |---|---|
-| Extraction | Streaming `document.xml` pass, configurable regex claim boundaries (EN/AR, explicit-end or next-start mode), Word list numbering, SEQ fields, content controls |
+| Extraction | Streaming `document.xml` pass, configurable claim boundaries: `{start}`/`{next}` markers (default `marker` profile, including markers inside PDF layout tables) or start/end regexes; Word list numbering, SEQ fields, content controls |
 | Fidelity | Exact text (no translation/normalization), Symbol-font → Unicode, RTL via `dir`/`lang`, run formatting, tables with row/col spans and borders, text boxes, hyperlinks |
 | Images | PNG/JPEG/GIF/WebP as-is, BMP/TIFF → PNG, sanitized SVG, EMF/WMF + drawing groups/canvases/VML shapes rendered by isolated LibreOffice with exact placement |
 | Equations | Own OMML → MathML converter; equations outside its coverage are rendered from the original OMML to images; `equation_mode: image` switch |
@@ -40,7 +42,8 @@ Requirements: Python 3.12+, LibreOffice (writer, draw, math), poppler-utils.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                                    # 120 tests (performance test: -m performance)
+python -m pytest -q                                    # 124 tests (performance: -m performance)
+PATENT_SAMPLES_DIR=/path/to/samples python -m pytest tests/regression   # customer samples (not in repo)
 python scripts/generate_fixtures.py --out fixtures/   # synthetic bilingual DOCX set
 PATENT_CONFIG_FILE=config/app.dev.yaml PYTHONPATH=src \
   uvicorn patent_converter.main:create_app --factory --port 8000
@@ -48,11 +51,11 @@ curl -F englishFile=@fixtures/patent_en.docx -F arabicFile=@fixtures/patent_ar.d
      -F configProfile=synthetic-test localhost:8000/api/v1/patent/claims/convert
 ```
 
-**Before production:** run the analyzer on real patents and create a verified
-claim-pattern profile:
+The default profile `marker` matches the customer documents (`{start}` / `{next}`).
+To check new document sources, run the analyzer:
 
 ```bash
-python scripts/analyze_docx.py --en real_en.docx --ar real_ar.docx --profile example --out reports/
+python scripts/analyze_docx.py --en real_en.docx --ar real_ar.docx --profile marker --out reports/
 ```
 
 ## Docker

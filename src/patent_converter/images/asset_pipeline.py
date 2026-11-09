@@ -72,7 +72,8 @@ class AssetPipeline:
             renderer = SnippetRenderer(
                 self.workdir / "snippets", self.settings.conversion.soffice_path,
                 self.settings.conversion.pdftocairo_path, self.settings.conversion.raster_dpi,
-                self.settings.conversion.libreoffice_timeout_seconds, self.settings.conversion.libreoffice_batch_size)
+                self.settings.conversion.libreoffice_timeout_seconds, self.settings.conversion.libreoffice_batch_size,
+                self.settings.conversion.libreoffice_parallelism)
             results = renderer.render(jobs, pkg, self.limit, self.deadline_check)
             dpi = self.settings.conversion.raster_dpi
             for key, res in results.items():

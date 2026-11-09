@@ -32,6 +32,7 @@ class State(str, Enum):
 
 
 class Role(str, Enum):
+    SEPARATOR = "separator"
     OUTSIDE = "outside"
     SECTION_START = "section_start"
     SECTION_END = "section_end"
@@ -54,14 +55,24 @@ class BlockInfo:
 
 
 @dataclass
+class NumberCandidate:
+    priority: int          # index of the matching number pattern (lower wins)
+    block_index: int
+    number_raw: str
+    from_numbering: bool
+
+
+@dataclass
 class DetectedClaim:
     number_raw: str
     number: str
     start_block: int
     end_block: int
     block_count: int = 1
-    closed_by: str | None = None  # end_marker | next_start | section_end | end_of_document
+    closed_by: str | None = None  # end_marker | separator | next_start | section_end | end_of_document
     number_from_numbering: bool = False
+    candidates: list[NumberCandidate] = field(default_factory=list)  # separator mode
+    inline_markers: dict[int, list[tuple[int, int]]] = field(default_factory=dict)  # block -> marker spans
 
     @property
     def closed(self) -> bool:
@@ -139,9 +150,140 @@ class ClaimBoundaryDetector:
         ))
         self._current = None
 
+    # ------------------------------------------------------------------ separator mode
+    def _match_text(self, block: BlockInfo) -> tuple[str, int]:
+        """Match copy of the block text; returns (text, length of the numbering-label prefix)."""
+        p = self.patterns
+        raw = block.text
+        label_len = 0
+        if p.config.include_numbering_label and block.numbering_label:
+            raw = block.numbering_label + raw
+            label_len = len(p.prepare(block.numbering_label))
+        return p.prepare(raw), label_len
+
+    def _number_candidates(self, block: BlockInfo, text: str, label_len: int) -> list[NumberCandidate]:
+        out = []
+        for prio, pat in enumerate(self.patterns.numbers):
+            m = pat.search(text) if self.patterns.config.match_mode == "search" else pat.match(text)
+            if m is not None:
+                out.append(NumberCandidate(prio, block.index, m.group("number"), m.start("number") < label_len))
+        return out
+
+    def _open(self, block: BlockInfo) -> DetectedClaim:
+        claim = DetectedClaim(number_raw="", number="", start_block=block.index, end_block=block.index)
+        self.claims.append(claim)
+        self._current = claim
+        self.state = State.IN_CLAIM
+        return claim
+
+    def _add_to_current(self, block: BlockInfo, text: str, label_len: int, spans) -> None:
+        claim = self._current
+        assert claim is not None
+        if block.index != claim.start_block:
+            claim.end_block = block.index
+            claim.block_count += 1
+        if spans:
+            claim.inline_markers[block.index] = spans
+        if block.kind == "paragraph":
+            # Number candidates are searched in the text without inline marker characters.
+            claim.candidates.extend(self._number_candidates(block, _remove_spans(text, spans), label_len))
+
+    def _resolve_number(self, claim: DetectedClaim) -> None:
+        if not claim.candidates:
+            return
+        best = min(claim.candidates, key=lambda c: (c.priority, c.block_index))
+        claim.number_raw = best.number_raw
+        claim.number = normalize_claim_number(best.number_raw)
+        claim.number_from_numbering = best.from_numbering
+        distinct = {normalize_claim_number(c.number_raw) for c in claim.candidates}
+        if len(distinct) > 1:
+            self.issues.append(BoundaryIssue(
+                code="AMBIGUOUS_CLAIM_NUMBER", severity="error",
+                message=f"claim block starting at block {claim.start_block} contains several claim numbers: "
+                        f"{', '.join(sorted(distinct, key=claim_sort_key))}",
+                block_index=claim.start_block, claim_number=claim.number,
+                details={"numbers": sorted(distinct, key=claim_sort_key)},
+            ))
+
+    def _close_sep(self, reason: str) -> None:
+        if self._current is not None:
+            self._resolve_number(self._current)
+            self._current.closed_by = reason
+            self._current = None
+        self.state = State.IN_SECTION
+
+    def _feed_separator(self, block: BlockInfo) -> Role:
+        p = self.patterns
+        text, label_len = ("", 0)
+        if block.kind == "paragraph":
+            text, label_len = self._match_text(block)
+        if self.state is State.BEFORE_SECTION:
+            if block.kind == "paragraph" and p.match_section_start(text):
+                self.state = State.IN_SECTION
+                self.section_found = True
+                self.section_start_block = block.index
+                return Role.SECTION_START
+            return Role.OUTSIDE
+        if self.state is State.AFTER_SECTION:
+            return Role.OUTSIDE
+        if block.kind == "paragraph":
+            if p.section_end is not None and p.match_section_end(text):
+                self._close_sep("section_end")
+                self.state = State.AFTER_SECTION
+                self.section_end_block = block.index
+                return Role.SECTION_END
+            if p.section_start is not None and p.match_section_start(text):
+                self.issues.append(BoundaryIssue(
+                    code="REPEATED_SECTION_START", severity="warning",
+                    message="claims section start marker found again inside the claims section",
+                    block_index=block.index))
+                return Role.SECTION_START
+            spans = [(m.start(), m.end()) for m in p.separator.finditer(text)] if p.separator else []
+            if spans:
+                before = text[:spans[0][0]].strip()
+                after = text[spans[-1][1]:].strip()
+                middle = any(text[a[1]:b[0]].strip() for a, b in zip(spans, spans[1:]))
+                if middle or (before and after):
+                    self.issues.append(BoundaryIssue(
+                        code="AMBIGUOUS_MARKER", severity="error",
+                        message="separator marker in the middle of a paragraph; split the paragraph in the source",
+                        block_index=block.index,
+                        claim_number=self._current.number if self._current else None))
+                if before:  # marker closes the claim this paragraph belongs to
+                    role = Role.CLAIM_BODY
+                    if self._current is None:
+                        self._open(block)
+                        role = Role.CLAIM_START
+                    self._add_to_current(block, text, label_len, spans)
+                    self._close_sep("separator")
+                    return role
+                self._close_sep("separator")
+                if after:  # marker at the start: the rest of the paragraph opens the next claim
+                    self._open(block)
+                    self._add_to_current(block, text, label_len, spans)
+                    return Role.CLAIM_START
+                return Role.SEPARATOR
+            if (p.config.start_splits_claims and self._current is not None and self._current.candidates
+                    and p.match_claim_start(text) is not None):
+                self._close_sep("next_start")
+                self._open(block)
+                self._add_to_current(block, text, label_len, [])
+                return Role.CLAIM_START
+        if self._current is None:
+            if block.is_empty:
+                return Role.EMPTY_GAP
+            self._open(block)
+            self._add_to_current(block, text, label_len, [])
+            return Role.CLAIM_START
+        self._add_to_current(block, text, label_len, [])
+        return Role.CLAIM_BODY
+
+    # ------------------------------------------------------------------ feed
     def feed(self, block: BlockInfo) -> Role:
         if self._finished:
             raise RuntimeError("detector already finished")
+        if self.patterns.end_mode is EndMode.SEPARATOR:
+            return self._feed_separator(block)
         p = self.patterns
         text = ""
         if block.kind == "paragraph":
@@ -237,6 +379,17 @@ class ClaimBoundaryDetector:
     def _validate(self, max_claims: int | None) -> None:
         v = self.validation
         p = self.patterns
+        if p.end_mode is EndMode.SEPARATOR:
+            if self._current is not None:
+                self._close_sep("end_of_document")
+            for i, claim in enumerate(self.claims, 1):
+                if not claim.number:
+                    claim.number_raw = ""
+                    claim.number = f"?{i}"
+                    self.issues.append(BoundaryIssue(
+                        code="MISSING_CLAIM_NUMBER", severity="error",
+                        message=f"claim block {i} (blocks {claim.start_block}-{claim.end_block}) has no claim number",
+                        block_index=claim.start_block, claim_number=claim.number))
         if self._current is not None:
             if p.end_mode is EndMode.EXPLICIT_END:
                 self._unclosed(self._current.end_block, "the end of the document")
@@ -294,3 +447,14 @@ class ClaimBoundaryDetector:
                 code="TOO_MANY_CLAIMS", severity="error",
                 message=f"{len(self.claims)} claims detected; configured maximum is {max_claims}",
             ))
+
+
+def _remove_spans(text: str, spans: list[tuple[int, int]]) -> str:
+    if not spans:
+        return text
+    out, pos = [], 0
+    for a, b in spans:
+        out.append(text[pos:a])
+        pos = b
+    out.append(text[pos:])
+    return "".join(out)

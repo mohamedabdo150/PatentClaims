@@ -1,8 +1,7 @@
 # Claim boundary pattern profiles.
 #
-# IMPORTANT: none of these profiles has been verified against real patent
-# documents yet ("verified: false"). Run scripts/analyze_docx.py on
-# representative files and tune/verify a profile before production use.
+# "marker" is derived from and tested on the customer's sample documents.
+# "example" and "synthetic-test" are NOT production profiles.
 #
 # Matching is performed on the *logical* (stored) text of each top-level
 # paragraph of the main document body. When include_numbering_label is true,
@@ -16,6 +15,54 @@
 #                             part of the claim ("explicit_end" mode).
 
 profiles:
+  marker:
+    verified: true
+    description: >
+      Marker-delimited claims as used in the customer sample documents (2026-11):
+      "{start}" opens the claims, "{next}" closes a claim (own paragraph or inline at
+      the start/end of a paragraph, also inside layout tables). The claim number is
+      searched anywhere in the claim block. English: Word list numbering or "N." at
+      paragraph start, or "N-Text"; a new "N."/list-numbered paragraph also closes a claim. Arabic (often
+      converted from PDF): "N-"/"N." at paragraph start, "-N text", or a standalone
+      "-N" paragraph; numbers do not split claims because they may appear mid-claim.
+    english:
+      boundary_mode: separator
+      section_start_pattern: '^\s*\{\s*start\s*\}\s*$'
+      separator_pattern: '\{\s*next\s*\}'
+      claim_start_pattern: '^\s*(?P<number>\d{1,4})\s*[.)]\s*\S'
+      number_patterns:
+        - '^\s*(?P<number>\d{1,4})\s*[.)]\s*\S'
+        - '^\s*(?P<number>\d{1,4})\s*[-–]\s*[A-Za-z(\[]'
+        - '^\s*[-–]?\s*(?P<number>\d{1,4})\s*[-–.)]?\s*$'
+      start_splits_claims: true
+      case_sensitive: false
+      match_mode: match
+      include_numbering_label: true
+      ignore_bidi_marks_for_matching: true
+      max_match_chars: 2000
+    arabic:
+      boundary_mode: separator
+      section_start_pattern: '^\s*\{\s*start\s*\}\s*$'
+      separator_pattern: '\{\s*next\s*\}'
+      number_patterns:
+        - '^\s*(?P<number>[0-9٠-٩]{1,4})\s*[-–.)]\s+\S'
+        - '^\s*[-–]\s*(?P<number>[0-9٠-٩]{1,4})(?![0-9٠-٩])\s+\S'
+        - '^\s*[-–]?\s*(?P<number>[0-9٠-٩]{1,4})\s*[-–.)]?\s*$'
+      start_splits_claims: false
+      case_sensitive: false
+      match_mode: match
+      include_numbering_label: true
+      ignore_bidi_marks_for_matching: true
+      max_match_chars: 2000
+    validation:
+      require_section_start: true
+      require_start_marker: true
+      require_end_marker: false
+      reject_duplicate_claim_numbers: true
+      reject_unclosed_claims: true
+      reject_orphan_content: true
+      require_sequential_numbers: false
+
   example:
     verified: false
     description: >

@@ -42,6 +42,7 @@ startup.
 | `conversion.raster_dpi` | 192 | resolution of rasterized drawings, metafiles and equation images (2× CSS pixels) |
 | `conversion.libreoffice_timeout_seconds` | 600 | per LibreOffice batch; the process tree is killed on timeout |
 | `conversion.libreoffice_batch_size` | 100 | snippets per LibreOffice process |
+| `conversion.libreoffice_parallelism` | 4 | concurrent LibreOffice processes (and rasterizers) per job; output is identical to sequential |
 | `conversion.prefer_svg` | true | embed Word's SVG (sanitized) instead of its PNG fallback |
 | `conversion.max_asset_mb` | 200 | largest single media part read |
 | `conversion.soffice_path` / `pdftocairo_path` | soffice / pdftocairo | external converters |
@@ -81,9 +82,43 @@ profiles:
       require_sequential_numbers: false
 ```
 
-Shipped profiles: `example` (generic, **unverified**) and `synthetic-test`
-(matches the test fixtures). Neither is a production profile. Select per request
-with `configProfile`.
+Shipped profiles:
+
+* **`marker`** (default): derived from and tested on the customer sample
+  documents. `{start}` opens the claims; `{next}` closes a claim. The marker may be
+  its own paragraph, or inline at the start/end of a paragraph, and may be split
+  across runs. Marker text is removed from the output.
+* `example`: generic `N.` claims after a "CLAIMS" heading (unverified).
+* `synthetic-test`: matches the synthetic test fixtures.
+
+### Separator ("marker") mode
+
+```yaml
+english:
+  boundary_mode: separator
+  section_start_pattern: '^\s*\{\s*start\s*\}\s*$'
+  separator_pattern: '\{\s*next\s*\}'
+  claim_start_pattern: '^\s*(?P<number>\d{1,4})\s*[.)]\s*\S'   # used for start_splits_claims
+  number_patterns:            # searched in every paragraph of the claim; lower index wins
+    - '^\s*(?P<number>\d{1,4})\s*[.)]\s*\S'          # "1." (Word numbering label or text)
+    - '^\s*(?P<number>\d{1,4})\s*[-–]\s*[A-Za-z(\[]'  # "2-The compound"
+    - '^\s*[-–]?\s*(?P<number>\d{1,4})\s*[-–.)]?\s*$' # standalone "-8" paragraph
+  start_splits_claims: true   # a numbered paragraph also closes the previous (numbered) claim
+  strip_markers: true
+  linearize_marker_tables: true
+```
+
+* A claim is the content between `{start}`/`{next}` markers. Its number may
+  appear anywhere inside the claim (PDF-converted Arabic documents put it after
+  the first lines).
+* **No number** in a claim → `MISSING_CLAIM_NUMBER`. **Several different numbers**
+  → `AMBIGUOUS_CLAIM_NUMBER`. **A marker in the middle of a paragraph** →
+  `AMBIGUOUS_MARKER`. All are errors: claims are never paired by position.
+* Tables that contain markers are *layout containers*, linearized row by row.
+  A cell that holds only a claim number belongs to its own row and is placed
+  before a trailing `{next}` in that row (`LAYOUT_TABLE_LINEARIZED` warning).
+
+Select a profile per request with `configProfile`.
 
 **Caution with explicit end markers:** an end regex such as `[.;]\s*$` closes a
 claim at the first sentence-ending paragraph; intermediate paragraphs that end in

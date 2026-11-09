@@ -90,6 +90,10 @@ def evaluate_risks(report: dict[str, Any], settings: Settings, profile: "Compile
     for issue in claims.get("issues", []):
         sev = "high" if issue["severity"] == "error" else "medium"
         _risk(risks, f"CLAIMS_{issue['code']}", sev, issue["message"])
+    if claims.get("layoutTablesLinearized"):
+        _risk(risks, "LAYOUT_TABLE_LINEARIZED", "medium",
+              "tables containing claim markers are treated as layout containers and linearized cell by cell",
+              claims["layoutTablesLinearized"])
     if claims.get("count", 0) and report.get("numbering", {}).get("claimsNumberedByWordNumbering"):
         _risk(risks, "CLAIMS_AUTO_NUMBERED", "medium",
               "claim numbers come from Word list numbering (not text); numbering resolution must be verified",

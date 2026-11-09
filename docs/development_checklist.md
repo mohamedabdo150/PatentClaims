@@ -39,13 +39,21 @@ probing, risks, size estimates, CLI + `/analyze`.
 - [x] CKEditor 4 / 5 round-trip compatibility measured
 - [x] Visual review tooling (`scripts/visual_review.py`)
 
+## Real-document validation (customer samples, 2026-11-09) ✅
+- [x] Marker boundary mode (`{start}`/`{next}`, inline and run-split markers, stripped from output)
+- [x] Claim number anywhere in the claim; missing/ambiguous numbers are errors
+- [x] PDF layout tables with markers linearized; number-cell row rule
+- [x] 4 English documents converted completely (incl. 778 EMF structures); Arabic source defects reported precisely
+- [x] Parallel LibreOffice conversion (`libreoffice_parallelism`), byte-identical output
+- [x] Opt-in regression tests for the samples (not committed)
+
 ## Phase 7 — Docker & deployment 🟡
 - [x] Ubuntu 24.04 image with LibreOffice/poppler/fonts, non-root, read-only, healthcheck, build-CA secret
 - [x] Compose (prod + dev), `.env.example`, deployment and two-node guide
 - [ ] Deploy on the two target nodes behind the load balancer
 
 ## Phase 8 — Integration & acceptance ⛔ (customer environment)
-- [ ] Real Arabic/English patents: analyzer reports, verified pattern profile, regression fixtures
+- [ ] More real Arabic/English pairs (only one Arabic sample so far, with source defects)
 - [ ] OutSystems REST consume with a maximum-size response; SQL Server persistence; CKEditor in the application
 - [ ] Decision on `max_response_size_mb`
 - [ ] Benchmarks on 16 vCPU / 64 GB nodes; security review
