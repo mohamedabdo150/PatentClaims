@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import re
+import threading
 import uuid
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -26,6 +28,7 @@ class AppState:
     limiter: JobLimiter
     rate_limiter: RateLimiter
     executor: ThreadPoolExecutor
+    diagnostics: "DiagnosticsStore"
 
     @classmethod
     def create(cls, settings: Settings) -> "AppState":
@@ -37,7 +40,28 @@ class AppState:
             rate_limiter=RateLimiter(settings.security.rate_limit_requests_per_minute),
             # +1 so a timed-out job finishing its cleanup never blocks a new one from being scheduled.
             executor=ThreadPoolExecutor(max_workers=slots + 1, thread_name_prefix="job"),
+            diagnostics=DiagnosticsStore(200),
         )
+
+
+class DiagnosticsStore:
+    """Bounded in-memory store of recent conversion diagnostics (counts only, never patent content)."""
+
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self._items: OrderedDict[str, dict] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def put(self, request_id: str, data: dict) -> None:
+        with self._lock:
+            self._items[request_id] = data
+            self._items.move_to_end(request_id)
+            while len(self._items) > self.capacity:
+                self._items.popitem(last=False)
+
+    def get(self, request_id: str) -> dict | None:
+        with self._lock:
+            return self._items.get(request_id)
 
 
 def get_state(request: Request) -> AppState:

@@ -9,7 +9,9 @@ still consuming resources.
 from __future__ import annotations
 
 import logging
+import os
 import time
+import uuid
 from dataclasses import dataclass
 from typing import IO, Any
 
@@ -21,7 +23,10 @@ from ..diagnostics import metrics
 from ..diagnostics.logging_config import request_id_var
 from ..security.resource_limits import Deadline, DeadlineExceeded
 from ..security.upload_validator import save_stream, validate_docx_file
-from ..storage.temporary_storage import JobWorkspace, free_disk_bytes
+from ..storage.temporary_storage import RESPONSES_DIR, JobWorkspace, free_disk_bytes
+from ..config.settings import MB
+from ..pairing.bilingual_pairing import assemble_response, pair_claims
+from .converter import convert_document
 
 log = logging.getLogger("patent_converter.jobs")
 
@@ -95,6 +100,7 @@ def run_job(
     deadline: Deadline,
     mode: str,
     on_finish: Any,
+    strict: bool = False,
 ) -> dict[str, Any]:
     """Execute a job synchronously (called in a worker thread)."""
     token = request_id_var.set(request_id)
@@ -126,12 +132,7 @@ def run_job(
             _record_metrics(result)
             if mode == "convert":
                 validate_for_conversion(result)
-                claims = result["pairing"]["englishCount"]
-                raise AppError(
-                    ErrorCode.CONVERSION_NOT_IMPLEMENTED,
-                    "Documents passed validation and claim pairing; HTML rendering is not implemented yet (Phase 4).",
-                    {"claimCount": claims, "phase": "2"},
-                )
+                return _convert(settings, profile, request_id, ws.path, paths, result, deadline, strict, t0)
             return result
     except DeadlineExceeded:
         log.warning("job exceeded deadline; aborted")
@@ -140,3 +141,38 @@ def run_job(
         log.info("job finished", extra={"mode": mode, "seconds": round(time.perf_counter() - t0, 3)})
         request_id_var.reset(token)
         on_finish()
+
+
+def _convert(settings, profile, request_id, workdir, paths, analysis, deadline, strict, t0) -> dict[str, Any]:
+    docs = {}
+    for lang, key in (("en", "english"), ("ar", "arabic")):
+        t = time.perf_counter()
+        docs[lang] = convert_document(paths[lang][0], lang, profile, settings, analysis[key], workdir / lang,
+                                      deadline, strict)
+        metrics.PHASE_DURATION.labels(f"convert_{lang}").observe(time.perf_counter() - t)
+    t = time.perf_counter()
+    pairs = pair_claims(docs["en"], docs["ar"])
+    response = workdir / "response.json"
+    size = assemble_response(pairs, response, int(settings.output.max_response_size_mb * MB))
+    metrics.PHASE_DURATION.labels("assemble_json").observe(time.perf_counter() - t)
+    metrics.OUTPUT_BYTES.observe(size)
+    # Move the response out of the workspace: the workspace is removed when the job ends,
+    # the response file is removed after it has been streamed to the client.
+    out_dir = settings.storage.temporary_directory / RESPONSES_DIR
+    out_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    final = out_dir / f"{request_id}-{uuid.uuid4().hex[:12]}.json"
+    os.replace(response, final)
+    diagnostics = {
+        "requestId": request_id,
+        "profile": profile.name,
+        "claimCount": len(pairs),
+        "responseBytes": size,
+        "processingSeconds": round(time.perf_counter() - t0, 3),
+        "english": docs["en"].diagnostics,
+        "arabic": docs["ar"].diagnostics,
+        "analysis": {
+            "english": {"risks": analysis["english"]["risks"], "unicode": analysis["english"]["unicode"]["claims"]},
+            "arabic": {"risks": analysis["arabic"]["risks"], "unicode": analysis["arabic"]["unicode"]["claims"]},
+        },
+    }
+    return {"responsePath": str(final), "diagnostics": diagnostics}

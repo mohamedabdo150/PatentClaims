@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.background import BackgroundTask
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from .. import __version__
@@ -21,7 +23,7 @@ from .errors import AppError, ErrorCode
 from .schemas import ConvertResponse, ErrorResponse
 
 router = APIRouter()
-_ERRORS = {code: {"model": ErrorResponse} for code in (400, 401, 413, 415, 422, 429, 500, 501, 503, 504)}
+_ERRORS = {code: {"model": ErrorResponse} for code in (400, 401, 404, 413, 415, 422, 429, 500, 503, 504)}
 
 
 def _parse_bool(value: str | None, name: str) -> bool:
@@ -49,7 +51,7 @@ async def _execute(
     settings = state.settings
     rid = resolve_request_id(request_id or request.state.request_id)
     request.state.request_id = rid
-    _parse_bool(strict_validation, "strictValidation")  # strict mode is the default behaviour in this phase
+    strict = _parse_bool(strict_validation, "strictValidation")
     if _parse_bool(allow_partial, "allowPartialResult"):
         raise AppError(ErrorCode.PARTIAL_RESULT_NOT_ENABLED,
                        "Partial results are disabled; conversion is all-or-nothing.")
@@ -76,7 +78,7 @@ async def _execute(
     ]
     deadline = Deadline(p.max_processing_seconds)
     try:
-        future = state.executor.submit(run_job, settings, profile, rid, uploads, deadline, mode, on_finish)
+        future = state.executor.submit(run_job, settings, profile, rid, uploads, deadline, mode, on_finish, strict)
     except Exception:
         on_finish()
         raise
@@ -113,13 +115,48 @@ async def convert(
 ) -> Any:
     t0 = time.perf_counter()
     try:
-        await _execute(request, state, "convert", englishFile, arabicFile, configProfile, requestId,
-                       strictValidation, allowPartialResult)
-        # Unreachable in Phase 2: run_job raises CONVERSION_NOT_IMPLEMENTED after successful validation.
-        raise AppError(ErrorCode.INTERNAL_ERROR, "Conversion produced no result.")
+        result = await _execute(request, state, "convert", englishFile, arabicFile, configProfile, requestId,
+                                strictValidation, allowPartialResult)
     except AppError as exc:
         _observe("convert", t0, "error", exc.code.value)
         raise
+    _observe("convert", t0, "success")
+    diag = result["diagnostics"]
+    state.diagnostics.put(diag["requestId"], diag)
+    path = result["responsePath"]
+    en, ar = diag["english"], diag["arabic"]
+    headers = {
+        "X-Claims-Count": str(diag["claimCount"]),
+        "X-Response-Bytes": str(diag["responseBytes"]),
+        "X-Processing-Seconds": str(diag["processingSeconds"]),
+        "X-Images-Embedded": str(en["imagesEmbedded"] + ar["imagesEmbedded"]),
+        "X-Equations-Rendered": str(en["equationsMathml"] + en["equationsImage"] + ar["equationsMathml"]
+                                    + ar["equationsImage"]),
+        "X-Tables-Rendered": str(en["tablesRendered"] + ar["tablesRendered"]),
+        "X-Warnings-Count": str(sum(en["warnings"].values()) + sum(ar["warnings"].values())),
+    }
+    return FileResponse(path, media_type="application/json", headers=headers,
+                        background=BackgroundTask(_remove, path))
+
+
+def _remove(path: str) -> None:
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+@router.get(
+    "/api/v1/patent/claims/diagnostics/{request_id}",
+    responses=_ERRORS,
+    summary="Diagnostics (counts, timings, warnings; no patent content) of a recent conversion on this worker",
+)
+async def diagnostics(request_id: str, _identity: str = Depends(authenticate),
+                      state: AppState = Depends(get_state)) -> Any:
+    data = state.diagnostics.get(request_id)
+    if data is None:
+        raise AppError(ErrorCode.NOT_FOUND, "No diagnostics for this requestId on this worker.")
+    return JSONResponse(data)
 
 
 @router.post(

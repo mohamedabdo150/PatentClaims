@@ -11,6 +11,7 @@ from pathlib import Path
 
 log = logging.getLogger("patent_converter.storage")
 JOBS_DIR = "jobs"
+RESPONSES_DIR = "responses"
 
 
 class JobWorkspace:
@@ -42,19 +43,23 @@ class JobWorkspace:
 
 
 def sweep_stale_jobs(root: Path, max_age_minutes: int) -> int:
-    """Remove job directories older than the retention window (startup / periodic recovery)."""
-    jobs = Path(root) / JOBS_DIR
-    if not jobs.is_dir():
-        return 0
+    """Remove job directories and undelivered responses older than the retention window."""
     cutoff = time.time() - max_age_minutes * 60
     removed = 0
-    for entry in jobs.iterdir():
-        try:
-            if entry.is_dir() and entry.stat().st_mtime < cutoff:
-                shutil.rmtree(entry, ignore_errors=True)
-                removed += 1
-        except FileNotFoundError:
+    for sub in (JOBS_DIR, RESPONSES_DIR):
+        base = Path(root) / sub
+        if not base.is_dir():
             continue
+        for entry in base.iterdir():
+            try:
+                if entry.stat().st_mtime < cutoff:
+                    if entry.is_dir():
+                        shutil.rmtree(entry, ignore_errors=True)
+                    else:
+                        entry.unlink(missing_ok=True)
+                    removed += 1
+            except FileNotFoundError:
+                continue
     if removed:
         log.info("removed stale job directories", extra={"count": removed})
     return removed

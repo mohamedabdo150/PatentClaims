@@ -54,13 +54,37 @@ def test_analyze_endpoint(client, docs):
     assert not jobs_left(client)  # workspace cleaned
 
 
-def test_convert_valid_pair_reports_not_implemented(client, docs):
-    r = client.post("/api/v1/patent/claims/convert", files=files(docs["en"], docs["ar"]), headers=AUTH)
-    assert r.status_code == 501
-    err = r.json()["error"]
-    assert err["code"] == "CONVERSION_NOT_IMPLEMENTED" and err["details"]["claimCount"] == 6
-    assert set(r.json()) == {"error"}
+def test_convert_success_contract(client, docs):
+    r = client.post("/api/v1/patent/claims/convert", files=files(docs["en"], docs["ar"]),
+                    data={"requestId": "ok-1"}, headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert list(body) == ["claims"] and len(body["claims"]) == 6
+    assert all(list(c) == ["claimNumber", "claimAr", "claimEn"] for c in body["claims"])
+    assert body["claims"][0]["claimAr"].startswith('<div class="pc-claim" dir="rtl" lang="ar">')
+    assert r.headers["X-Claims-Count"] == "6" and int(r.headers["X-Response-Bytes"]) == len(r.content)
+    assert r.headers["X-Images-Embedded"] == "24" and r.headers["X-Request-ID"] == "ok-1"
     assert not jobs_left(client)
+    assert not list((client.work / "responses").iterdir())  # streamed then deleted
+    d = client.get("/api/v1/patent/claims/diagnostics/ok-1", headers=AUTH)
+    assert d.status_code == 200 and d.json()["english"]["claimsRendered"] == 6
+    assert "pharmaceutically" not in d.text
+    assert client.get("/api/v1/patent/claims/diagnostics/nope", headers=AUTH).status_code == 404
+
+
+def test_convert_unsupported_content(client, docs):
+    r = client.post("/api/v1/patent/claims/convert", files=files(docs["edge"], docs["ar"]),
+                    data={"configProfile": "synthetic-test"}, headers=AUTH)
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] in ("CLAIM_EXTRACTION_FAILED", "CLAIM_PAIRING_MISMATCH", "UNSUPPORTED_CONTENT")
+
+
+def test_convert_output_limit(tmp_path, docs):
+    app = create_app(make_settings(tmp_path, output={"max_response_size_mb": 0.01}))
+    with TestClient(app) as c:
+        r = c.post("/api/v1/patent/claims/convert", files=files(docs["en"], docs["ar"]), headers=AUTH)
+        assert r.status_code == 422 and r.json()["error"]["code"] == "OUTPUT_LIMIT_EXCEEDED"
+        assert not list((tmp_path / "work" / "jobs").iterdir())
 
 
 def test_convert_pairing_mismatch_contract(client, docs):
