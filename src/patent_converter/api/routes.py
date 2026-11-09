@@ -62,31 +62,52 @@ async def _execute(
         raise AppError(ErrorCode.UNKNOWN_CONFIG_PROFILE, "Unknown configProfile.",
                        {"available": state.patterns.names()}) from None
 
-    if not state.limiter.try_acquire():
-        raise AppError(ErrorCode.CONCURRENCY_LIMIT, "Worker is busy with another conversion.",
-                       headers={"Retry-After": "30"})
-    metrics.ACTIVE_JOBS.inc()
-
-    def on_finish() -> None:
-        metrics.ACTIVE_JOBS.dec()
-        state.limiter.release()
-
     p = settings.processing
     uploads = [
         UploadedDocument("englishFile", "en", english.file, english.filename, english.content_type, p.max_english_bytes),
         UploadedDocument("arabicFile", "ar", arabic.file, arabic.filename, arabic.content_type, p.max_arabic_bytes),
     ]
-    deadline = Deadline(p.max_processing_seconds)
+    return await submit_job(state, rid, mode, uploads, profile, strict, wait_for_slot=False)
+
+
+async def acquire_slot(state: AppState, wait_seconds: float) -> None:
+    """Take a job slot; with ``wait_seconds`` > 0 wait (bounded) instead of answering 429 at once."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + wait_seconds
+    while not state.limiter.try_acquire():
+        if loop.time() >= deadline:
+            raise AppError(ErrorCode.CONCURRENCY_LIMIT, "Worker is busy with another conversion.",
+                           headers={"Retry-After": "30"})
+        await asyncio.sleep(0.25)
+    metrics.ACTIVE_JOBS.inc()
+
+
+def release_slot(state: AppState) -> None:
+    metrics.ACTIVE_JOBS.dec()
+    state.limiter.release()
+
+
+async def run_in_worker(state: AppState, fn, timeout: float, deadline: Deadline, *args):
+    """Run ``fn(*args)`` in the job executor; the slot must already be held and is released by ``fn``."""
     try:
-        future = state.executor.submit(run_job, settings, profile, rid, uploads, deadline, mode, on_finish, strict)
+        future = state.executor.submit(fn, *args)
     except Exception:
-        on_finish()
+        release_slot(state)
         raise
     try:
-        return await asyncio.wait_for(asyncio.wrap_future(future), timeout=p.max_processing_seconds + 5)
+        return await asyncio.wait_for(asyncio.wrap_future(future), timeout=timeout + 5)
     except asyncio.TimeoutError:
         deadline.cancel()  # the worker thread aborts at its next checkpoint and cleans up
         raise AppError(ErrorCode.PROCESSING_TIMEOUT, "Processing exceeded the configured time limit.") from None
+
+
+async def submit_job(state: AppState, rid: str, mode: str, uploads: list[UploadedDocument], profile,
+                     strict: bool, wait_for_slot: bool) -> dict[str, Any]:
+    p = state.settings.processing
+    await acquire_slot(state, p.queue_wait_seconds if wait_for_slot else 0)
+    deadline = Deadline(p.max_processing_seconds)
+    return await run_in_worker(state, run_job, p.max_processing_seconds, deadline, state.settings, profile, rid,
+                               uploads, deadline, mode, lambda: release_slot(state), strict)
 
 
 def _observe(endpoint: str, t0: float, outcome: str, code: str | None = None) -> None:
@@ -185,9 +206,20 @@ async def analyze(
     return JSONResponse(result)
 
 
-@router.get("/health", summary="Liveness probe")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "version": __version__}
+@router.get("/health", summary="Liveness probe (format compatible with the previous service)")
+async def health(state: AppState = Depends(get_state)) -> JSONResponse:
+    s = state.settings
+    model = getattr(state, "drawing_model", None)
+    return JSONResponse({
+        "status": "OK",
+        "message": "Service is running smoothly.",
+        "extractor": "patent-converter",
+        "version": __version__,
+        "model_loaded": bool(model and model.loaded),
+        "workers": s.processing.max_concurrent_jobs_per_worker,
+        "timeout": s.processing.max_processing_seconds,
+        "port": s.legacy.port,
+    }, media_type="application/json; charset=utf-8")
 
 
 @router.get("/ready", summary="Readiness probe (storage, configuration, free job slot)")

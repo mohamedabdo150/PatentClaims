@@ -34,6 +34,9 @@ class ErrorCode(str, Enum):
     CLAIM_PAIRING_MISMATCH = "CLAIM_PAIRING_MISMATCH"
     OUTPUT_LIMIT_EXCEEDED = "OUTPUT_LIMIT_EXCEEDED"
     UNSUPPORTED_CONTENT = "UNSUPPORTED_CONTENT"
+    NON_NUMERIC_CLAIM_NUMBER = "NON_NUMERIC_CLAIM_NUMBER"
+    MODEL_NOT_LOADED = "MODEL_NOT_LOADED"
+    INVALID_PDF = "INVALID_PDF"
     ASSET_CONVERSION_FAILED = "ASSET_CONVERSION_FAILED"
     CONTENT_INTEGRITY_FAILED = "CONTENT_INTEGRITY_FAILED"
     RATE_LIMITED = "RATE_LIMITED"
@@ -61,6 +64,9 @@ STATUS: dict[ErrorCode, int] = {
     ErrorCode.CLAIM_PAIRING_MISMATCH: 422,
     ErrorCode.OUTPUT_LIMIT_EXCEEDED: 422,
     ErrorCode.UNSUPPORTED_CONTENT: 422,
+    ErrorCode.NON_NUMERIC_CLAIM_NUMBER: 422,
+    ErrorCode.MODEL_NOT_LOADED: 500,
+    ErrorCode.INVALID_PDF: 500,  # the previous service answered 500 for unreadable PDFs
     ErrorCode.ASSET_CONVERSION_FAILED: 422,
     ErrorCode.CONTENT_INTEGRITY_FAILED: 500,
     ErrorCode.RATE_LIMITED: 429,
@@ -86,8 +92,35 @@ class AppError(Exception):
         return STATUS[self.code]
 
 
+# Routes of the previous service: errors keep that service's keys so existing callers need no change.
+LEGACY_PATHS = {"/word_to_json", "/convert_word_to_html", "/drawing_detection", "/pdf-to-images"}
+LEGACY_JSON = "application/json; charset=utf-8"
+
+
 def error_body(code: str, message: str, request_id: str | None, details: dict | None = None) -> dict:
     return {"error": {"code": code, "message": message, "requestId": request_id, "details": details or {}}}
+
+
+def legacy_error_body(code: str, message: str, request_id: str | None, details: dict | None = None) -> dict:
+    """Superset of the previous formats: {"detail": …} (HTTPException) and {"error": true, "message": …}."""
+    return {"error": True, "message": message, "detail": message, "code": code, "requestId": request_id,
+            "details": details or {}}
+
+
+def _is_legacy(request: Request) -> bool:
+    return request.url.path in LEGACY_PATHS
+
+
+def _respond(request: Request, status: int, code: str, message: str, details: dict | None = None,
+             headers: dict | None = None) -> JSONResponse:
+    rid = _request_id(request)
+    if _is_legacy(request):
+        if code == ErrorCode.PROCESSING_TIMEOUT.value:
+            settings = request.app.state.app_state.settings
+            message = f"Timeout after {settings.processing.max_processing_seconds}s"
+        return JSONResponse(legacy_error_body(code, message, rid, details), status_code=status, headers=headers,
+                            media_type=LEGACY_JSON)
+    return JSONResponse(error_body(code, message, rid, details), status_code=status, headers=headers)
 
 
 def _request_id(request: Request) -> str | None:
@@ -97,8 +130,7 @@ def _request_id(request: Request) -> str | None:
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(error_body(exc.code.value, exc.message, _request_id(request), exc.details),
-                            status_code=exc.status_code, headers=exc.headers)
+        return _respond(request, exc.status_code, exc.code.value, exc.message, exc.details, exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -106,16 +138,14 @@ def install_error_handlers(app: FastAPI) -> None:
         missing = [f["field"] for f in fields if f["problem"] == "missing"]
         code = ErrorCode.MISSING_FILE if any(m.endswith(("englishFile", "arabicFile")) for m in missing) \
             else ErrorCode.INVALID_REQUEST
-        return JSONResponse(error_body(code.value, "Invalid request.", _request_id(request), {"fields": fields}),
-                            status_code=400)
+        return _respond(request, 400, code.value, "Invalid request.", {"fields": fields})
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(exc.status_code, "HTTP_ERROR")
-        return JSONResponse(error_body(code, str(exc.detail), _request_id(request)), status_code=exc.status_code)
+        return _respond(request, exc.status_code, code, str(exc.detail))
 
     @app.exception_handler(Exception)
     async def _unexpected(request: Request, exc: Exception) -> JSONResponse:
         log.exception("unhandled error", extra={"error_type": type(exc).__name__})
-        return JSONResponse(error_body(ErrorCode.INTERNAL_ERROR.value, "Unexpected processing error.",
-                                       _request_id(request)), status_code=500)
+        return _respond(request, 500, ErrorCode.INTERNAL_ERROR.value, "Unexpected processing error.")

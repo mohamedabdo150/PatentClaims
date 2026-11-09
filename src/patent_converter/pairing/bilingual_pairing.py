@@ -56,17 +56,70 @@ def _write_html_string(w: _LimitedWriter, path: Path) -> None:
     w.write('"')
 
 
-def assemble_response(pairs: list[tuple[str, Path, Path]], out: Path, max_bytes: int) -> int:
+Field = tuple[str, object]   # (key, value); value is a Path (HTML file -> JSON string) or a JSON-serializable value
+
+
+def assemble_records(records: list[list[Field]], out: Path, max_bytes: int, top_key: str = "claims",
+                     extra: list[Field] | None = None) -> int:
+    """Stream ``{"<top_key>":[{...}, ...], <extra...>}``; HTML files are JSON-escaped in chunks."""
     with out.open("wb") as fh:
         w = _LimitedWriter(fh, max_bytes)
-        w.write('{"claims":[')
-        for i, (number, ar_path, en_path) in enumerate(pairs):
-            if i:
-                w.write(",")
-            w.write('{"claimNumber":' + json.dumps(number) + ',"claimAr":')
-            _write_html_string(w, ar_path)
-            w.write(',"claimEn":')
-            _write_html_string(w, en_path)
+        w.write("{" + json.dumps(top_key) + ":[")
+        for i, record in enumerate(records):
+            w.write("," if i else "")
+            w.write("{")
+            for j, (key, value) in enumerate(record):
+                w.write(("," if j else "") + json.dumps(key) + ":")
+                if isinstance(value, Path):
+                    _write_html_string(w, value)
+                else:
+                    w.write(json.dumps(value, ensure_ascii=False))
             w.write("}")
-        w.write("]}")
+        w.write("]")
+        for key, value in extra or []:
+            w.write("," + json.dumps(key) + ":" + json.dumps(value, ensure_ascii=False))
+        w.write("}")
         return w.size
+
+
+def assemble_object(fields: list[Field], out: Path, max_bytes: int) -> int:
+    """Stream a flat JSON object, e.g. ``{"success": true, "html": "..."}``."""
+    with out.open("wb") as fh:
+        w = _LimitedWriter(fh, max_bytes)
+        w.write("{")
+        for j, (key, value) in enumerate(fields):
+            w.write(("," if j else "") + json.dumps(key) + ":")
+            if isinstance(value, Path):
+                _write_html_string(w, value)
+            else:
+                w.write(json.dumps(value, ensure_ascii=False))
+        w.write("}")
+        return w.size
+
+
+def assemble_response(pairs: list[tuple[str, Path, Path]], out: Path, max_bytes: int) -> int:
+    """New contract: {"claims":[{"claimNumber","claimAr","claimEn"}]}."""
+    return assemble_records([[("claimNumber", n), ("claimAr", ar), ("claimEn", en)] for n, ar, en in pairs],
+                            out, max_bytes)
+
+
+def assemble_legacy_claims(docs: dict[str, ConvertedDocument], out: Path, max_bytes: int) -> int:
+    """Previous-service contract: {"claims":[{"id":<int>,"claim_english":…,"claim_arabic":…}]}.
+
+    ``id`` is the claim number (claims are paired by number, never by position). A
+    language that was not uploaded is omitted from the records, as before.
+    """
+    numbers = set().union(*(set(d.claims) for d in docs.values()))
+    bad = sorted(n for n in numbers if not n.isdigit())
+    if bad:
+        raise AppError(ErrorCode.NON_NUMERIC_CLAIM_NUMBER,
+                       "Claim numbers must be numeric for the legacy id field.", {"claimNumbers": bad[:50]})
+    records = []
+    for number in sorted(numbers, key=int):
+        rec: list[Field] = [("id", int(number))]
+        if "en" in docs:
+            rec.append(("claim_english", docs["en"].claims[number]))
+        if "ar" in docs:
+            rec.append(("claim_arabic", docs["ar"].claims[number]))
+        records.append(rec)
+    return assemble_records(records, out, max_bytes)

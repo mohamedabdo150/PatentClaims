@@ -46,14 +46,15 @@ class RenderCounts:
 
 
 class HtmlRenderer:
-    def __init__(self, registry: AssetRegistry):
+    def __init__(self, registry: AssetRegistry, wrapper_class: str = "pc-claim"):
         self.registry = registry
+        self.wrapper_class = wrapper_class
 
     def render_claim(self, claim: Claim) -> tuple[str, RenderCounts]:
         self.counts = RenderCounts()
         self.base_dir = "rtl" if claim.language == "ar" else "ltr"
         body = "".join(self.block(b, self.base_dir) for b in claim.blocks)
-        html = f'<div class="pc-claim" dir="{self.base_dir}" lang="{claim.language}">{body}</div>'
+        html = f'<div class="{self.wrapper_class}" dir="{self.base_dir}" lang="{claim.language}">{body}</div>'
         return html, self.counts
 
     # ------------------------------------------------------------------ blocks

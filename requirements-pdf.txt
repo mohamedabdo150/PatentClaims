@@ -1,0 +1,11 @@
+# Optional: legacy PDF routes (/drawing_detection, /pdf-to-images).
+# The claims/Word service runs without these packages.
+# TF_USE_LEGACY_KERAS=1 + tf-keras load the existing Keras-2 best_model.h5 unchanged.
+tensorflow==2.18.1; python_version < "3.13"
+tf-keras==2.18.0; python_version < "3.13"
+tensorflow-cpu==2.20.0; python_version >= "3.13" and sys_platform == "linux"
+tf-keras==2.20.1; python_version >= "3.13"
+pdf2image==1.17.0
+opencv-python-headless==4.10.0.84
+PyMuPDF==1.25.1
+numpy<2.1

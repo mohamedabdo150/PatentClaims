@@ -33,6 +33,9 @@ class ProcessingSettings(BaseModel):
     max_concurrent_jobs_per_worker: int = 1
     max_worker_memory_mb: int = 40960
     upload_chunk_size_kb: int = 1024
+    # Legacy routes wait this long for a free job slot instead of answering 429
+    # (legacy callers do not retry).
+    queue_wait_seconds: int = 600
 
     @property
     def max_english_bytes(self) -> int:
@@ -154,6 +157,25 @@ class ContentSettings(BaseModel):
         return self
 
 
+class LegacySettings(BaseModel):
+    """Routes of the previous service (AI_API_v2), kept with identical names and formats."""
+    enabled: bool = True
+    require_api_key: bool = False   # legacy callers send no key; restrict the port by firewall instead
+    port: int = 50013               # reported by /health (the listening port is set by the launcher)
+
+
+class PdfSettings(BaseModel):
+    """Re-implemented /drawing_detection and /pdf-to-images."""
+    enabled: bool = True
+    model_path: Path = Path("models/best_model.h5")
+    poppler_path: str | None = None          # folder with pdftoppm/pdftocairo (Windows); None = PATH
+    dpi: int = 200                           # pdf2image default, as in the previous service
+    max_pdf_mb: float = 100
+    max_pages: int = 500
+    max_page_pixels: int = 60_000_000
+    timeout_seconds: int = 600
+
+
 class LoggingSettings(BaseModel):
     level: str = "INFO"
     json_format: bool = True
@@ -172,6 +194,8 @@ class Settings(BaseSettings):
     analysis: AnalysisSettings = Field(default_factory=AnalysisSettings)
     conversion: ConversionSettings = Field(default_factory=ConversionSettings)
     content: ContentSettings = Field(default_factory=ContentSettings)
+    legacy: LegacySettings = Field(default_factory=LegacySettings)
+    pdf: PdfSettings = Field(default_factory=PdfSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     @classmethod

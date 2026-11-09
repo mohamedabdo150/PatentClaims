@@ -143,3 +143,61 @@ def extract_claims(
                                                  "claims inside a marker layout table were linearized"))
                 break
     return ExtractedDocument(language=language, claims=claims, registry=registry, package_path=path, rels=rels)
+
+
+def extract_document(
+    path: Path, language: str, settings: Settings, policy: ContentPolicy, deadline: Deadline | None = None,
+) -> ExtractedDocument:
+    """Whole main-document body as one model (no claim detection, markers kept as written)."""
+    deadline = deadline or Deadline(None)
+    sec = settings.security
+    aux = sec.max_auxiliary_xml_bytes
+    registry = AssetRegistry()
+    model = Claim(number="document", number_raw="", language=language)  # type: ignore[arg-type]
+    with DocxPackage(path) as pkg:
+        main_part, _strict = pkg.main_document_part(aux)
+        rels = pkg.relationships(main_part, aux)
+        numbering = NumberingResolver()
+        styles = StyleResolver()
+        for r in rels.values():
+            if r.part_name and pkg.has_part(r.part_name):
+                if r.rel_type == RT_NUMBERING:
+                    numbering.load_numbering(parse_bytes(pkg.read_part(r.part_name, aux)))
+                elif r.rel_type == RT_STYLES:
+                    root = parse_bytes(pkg.read_part(r.part_name, aux))
+                    numbering.load_styles(root)
+                    styles.load(root)
+        ctx = BuildContext(rels=rels, styles=styles, registry=registry, language=language, policy=policy)
+        ctx.claim = model
+        builder = ModelBuilder(ctx)
+        with pkg.open_part(main_part, sec.max_document_xml_bytes) as stream:
+            depth = 0
+            body_depth: int | None = None
+            for event, el in iterparse_secure(stream, huge_tree=sec.xml_huge_tree):
+                if event == "start":
+                    depth += 1
+                    if el.tag == _W_BODY:
+                        body_depth = depth
+                    continue
+                if body_depth is not None and depth == body_depth + 1:
+                    deadline.check()
+                    for block in iter_blocks(el, None):
+                        tag = block.tag
+                        if not isinstance(tag, str) or tag in _NON_CONTENT or tag == _W_SECTPR:
+                            continue
+                        ctx.labels = {}
+                        for p in ([block] if tag == _W_P else block.iter(_W_P)):
+                            numpr = numbering.paragraph_numpr(p.find(_W_PPR))
+                            if numpr:
+                                lab = numbering.next_label(*numpr)
+                                ctx.labels[id(p)] = lab.rstrip("\t ") if lab else lab
+                        model.blocks.extend(builder.blocks([block]))
+                    el.clear(keep_tail=True)
+                    parent = el.getparent()
+                    if parent is not None:
+                        while el.getprevious() is not None:
+                            del parent[0]
+                if el.tag == _W_BODY:
+                    body_depth = None
+                depth -= 1
+    return ExtractedDocument(language=language, claims=[model], registry=registry, package_path=path, rels=rels)

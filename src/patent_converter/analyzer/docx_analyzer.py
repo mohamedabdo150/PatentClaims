@@ -84,11 +84,13 @@ def _sha256(path: Path) -> str:
 
 
 class DocxAnalyzer:
-    def __init__(self, settings: Settings, profile: CompiledProfile, deadline: Deadline | None = None):
+    def __init__(self, settings: Settings, profile: CompiledProfile, deadline: Deadline | None = None,
+                 linearize_layout_tables: bool = True):
         self.settings = settings
         self.profile = profile
         self.sec = settings.security
         self.deadline = deadline or Deadline(None)
+        self.linearize = linearize_layout_tables
         configure_pillow_limit(self.sec.max_image_pixels)
 
     # ------------------------------------------------------------------ public
@@ -221,7 +223,7 @@ class DocxAnalyzer:
                     continue
                 if body_depth is not None and depth == body_depth + 1:
                     self.deadline.check()
-                    for block_el in iter_blocks(el, patterns, layout_stats):
+                    for block_el in iter_blocks(el, patterns if self.linearize else None, layout_stats):
                         tag = block_el.tag
                         if tag in _NON_CONTENT_BODY or tag == _W_SECTPR or not isinstance(tag, str):
                             if tag == _W_SECTPR:
@@ -379,6 +381,7 @@ class DocxAnalyzer:
             "formats": dict(formats),
             "referencedByMainDocument": sum(1 for i in images if refs.get(i.part_name)),
             "unreferencedByMainDocument": sum(1 for i in images if not refs.get(i.part_name)),
+            "imageReferencesInMainDocument": sum(refs.values()),
             "referencedInClaims": len(claim_parts),
             "imageReferencesInClaims": sum(claim_parts.values()),
             "requiringConversion": sum(1 for i in images if i.requires_conversion),

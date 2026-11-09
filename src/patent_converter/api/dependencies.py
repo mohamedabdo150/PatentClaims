@@ -13,7 +13,10 @@ from dataclasses import dataclass
 
 from fastapi import Request
 
+from typing import Any
+
 from ..config.claim_patterns import PatternRegistry
+from ..pdf.drawing_detection import DrawingModel
 from ..config.settings import Settings
 from ..security.resource_limits import JobLimiter, RateLimiter
 from .errors import AppError, ErrorCode
@@ -29,6 +32,7 @@ class AppState:
     rate_limiter: RateLimiter
     executor: ThreadPoolExecutor
     diagnostics: "DiagnosticsStore"
+    drawing_model: Any = None
 
     @classmethod
     def create(cls, settings: Settings) -> "AppState":
@@ -41,6 +45,7 @@ class AppState:
             # +1 so a timed-out job finishing its cleanup never blocks a new one from being scheduled.
             executor=ThreadPoolExecutor(max_workers=slots + 1, thread_name_prefix="job"),
             diagnostics=DiagnosticsStore(200),
+            drawing_model=DrawingModel(settings.pdf),
         )
 
 

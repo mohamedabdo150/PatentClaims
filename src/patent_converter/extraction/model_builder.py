@@ -489,13 +489,12 @@ class ModelBuilder:
         if first is not None and first.tag == qn(PIC, "pic"):
             self._image_from_blip(first, extent, alt, floating, "media", out)
             return
-        if first is not None and first.tag in (qn(C, "chart"),) or gd.find(".//" + qn(C, "chart")) is not None:
-            self.ctx.issue("CHART", "error", "DrawingML chart cannot be rendered faithfully")
-            self.counters.text_chars_removed += len(scan_block(d).text)
-            return
-        if first is not None and first.tag == qn(DGM, "relIds"):
-            self.ctx.issue("SMARTART", "error", "SmartArt diagram cannot be rendered faithfully")
-            self.counters.text_chars_removed += len(scan_block(d).text)
+        if first is not None and first.tag in (qn(C, "chart"), qn(DGM, "relIds")):
+            # Charts and SmartArt are rendered from the parts Word stored (chart cache / pre-drawn
+            # diagram) by the snippet renderer; a blank render still fails the conversion.
+            kind = "CHART_RENDERED_AS_IMAGE" if first.tag == qn(C, "chart") else "SMARTART_RENDERED_AS_IMAGE"
+            self.ctx.issue(kind, "warning", "rendered as an image from the diagram data stored in the document")
+            self._snippet(d, "drawing", extent, alt, floating, out)
             return
         if first is not None and first.tag == qn(WPS, "wsp"):
             txbx = first.find(f"{qn(WPS, 'txbx')}/{qn(W, 'txbxContent')}")

@@ -25,8 +25,9 @@ from ..security.resource_limits import Deadline, DeadlineExceeded
 from ..security.upload_validator import save_stream, validate_docx_file
 from ..storage.temporary_storage import RESPONSES_DIR, JobWorkspace, free_disk_bytes
 from ..config.settings import MB
-from ..pairing.bilingual_pairing import assemble_response, pair_claims
-from .converter import convert_document
+from ..analyzer.docx_analyzer import DocxAnalyzer
+from ..pairing.bilingual_pairing import assemble_legacy_claims, assemble_object, assemble_response, pair_claims
+from .converter import convert_document, convert_whole_document
 
 log = logging.getLogger("patent_converter.jobs")
 
@@ -64,8 +65,9 @@ def _record_metrics(result: dict[str, Any]) -> None:
 
 def validate_for_conversion(result: dict[str, Any]) -> None:
     """Raise the appropriate structured error if the pair cannot be converted completely."""
+    present = [k for k in ("english", "arabic") if result.get(k) is not None]
     rejected = {}
-    for key in ("english", "arabic"):
+    for key in present:
         rep = result[key]
         if rep["status"] == "rejected":
             rejected[key] = [f["code"] for f in rep["package"]["findings"] if f.get("blocking", True)]
@@ -74,7 +76,7 @@ def validate_for_conversion(result: dict[str, Any]) -> None:
         raise AppError(ErrorCode.INVALID_DOCX if invalid else ErrorCode.DOCUMENT_REJECTED,
                        "One or more documents failed validation or security screening.", {"rejected": rejected})
     extraction = {}
-    for key in ("english", "arabic"):
+    for key in present:
         errors = [i for i in result[key]["claims"]["issues"] if i["severity"] == "error"]
         if errors:
             extraction[key] = [{"code": i["code"], "claimNumber": i["claim_number"], "blockIndex": i["block_index"]}
@@ -82,6 +84,8 @@ def validate_for_conversion(result: dict[str, Any]) -> None:
     if extraction:
         raise AppError(ErrorCode.CLAIM_EXTRACTION_FAILED, "Claim boundaries could not be extracted unambiguously.",
                        {"issues": extraction})
+    if len(present) < 2:
+        return
     p = result["pairing"]
     if not p.get("pairable"):
         raise AppError(ErrorCode.CLAIM_PAIRING_MISMATCH, "Arabic and English claim numbers do not match.", {
@@ -116,23 +120,29 @@ def run_job(
             for up in uploads:
                 deadline.check()
                 dest = ws.file(f"{up.language}.docx")
+                up_lang_key = "doc" if mode == "document" else up.language
                 total += save_stream(up.stream, dest, up.max_bytes, chunk, up.field)
                 if total > settings.processing.max_combined_bytes:
                     raise AppError(ErrorCode.UPLOAD_TOO_LARGE, "Combined upload exceeds the maximum allowed size.",
                                    {"maxBytes": settings.processing.max_combined_bytes})
                 validate_docx_file(dest, up.field, up.filename, up.content_type)
-                paths[up.language] = (dest, up.filename)
+                paths[up_lang_key] = (dest, up.filename)
             metrics.PHASE_DURATION.labels("upload_persist").observe(time.perf_counter() - t0)
+            if mode == "document":
+                return _convert_whole(settings, profile, request_id, ws.path, paths, deadline, strict, t0)
             result = analyze_pair(
                 settings, profile,
-                english=paths["en"][0], arabic=paths["ar"][0],
-                english_name=paths["en"][1], arabic_name=paths["ar"][1],
+                english=paths["en"][0] if "en" in paths else None,
+                arabic=paths["ar"][0] if "ar" in paths else None,
+                english_name=paths["en"][1] if "en" in paths else None,
+                arabic_name=paths["ar"][1] if "ar" in paths else None,
                 deadline=deadline,
             )
             _record_metrics(result)
-            if mode == "convert":
+            if mode in ("convert", "legacy_claims"):
                 validate_for_conversion(result)
-                return _convert(settings, profile, request_id, ws.path, paths, result, deadline, strict, t0)
+                return _convert(settings, profile, request_id, ws.path, paths, result, deadline, strict, t0,
+                                legacy=mode == "legacy_claims")
             return result
     except DeadlineExceeded:
         log.warning("job exceeded deadline; aborted")
@@ -143,36 +153,76 @@ def run_job(
         on_finish()
 
 
-def _convert(settings, profile, request_id, workdir, paths, analysis, deadline, strict, t0) -> dict[str, Any]:
+def _publish(settings: Settings, request_id: str, response) -> str:
+    """Move the response out of the workspace (removed when the job ends); deleted after streaming."""
+    out_dir = settings.storage.temporary_directory / RESPONSES_DIR
+    out_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    final = out_dir / f"{request_id}-{uuid.uuid4().hex[:12]}.json"
+    os.replace(response, final)
+    return str(final)
+
+
+def _convert_whole(settings, profile, request_id, workdir, paths, deadline, strict, t0) -> dict[str, Any]:
+    """Whole-document conversion (legacy /convert_word_to_html); language detected from the text."""
+    path, name = paths["doc"]
+    analyzer = DocxAnalyzer(settings, profile, deadline, linearize_layout_tables=False)
+    analysis = analyzer.analyze(path, "en", display_name=name)
+    if analysis["status"] == "rejected":
+        codes = [f["code"] for f in analysis["package"]["findings"] if f.get("blocking", True)]
+        invalid = all(c in ("INVALID_ZIP", "INVALID_DOCX_STRUCTURE") for c in codes)
+        raise AppError(ErrorCode.INVALID_DOCX if invalid else ErrorCode.DOCUMENT_REJECTED,
+                       "The document failed validation or security screening.", {"rejected": {"document": codes}})
+    uni = analysis["unicode"]["document"]
+    language = "ar" if uni["arabic_chars"] > uni["latin_chars"] else "en"
+    t = time.perf_counter()
+    doc = convert_whole_document(path, language, settings, analysis, workdir / "doc", deadline, strict)
+    metrics.PHASE_DURATION.labels("convert_document").observe(time.perf_counter() - t)
+    response = workdir / "response.json"
+    size = assemble_object([("success", True), ("html", doc.claims["document"])], response,
+                           int(settings.output.max_response_size_mb * MB))
+    metrics.OUTPUT_BYTES.observe(size)
+    diagnostics = {"requestId": request_id, "mode": "document", "language": language, "responseBytes": size,
+                   "processingSeconds": round(time.perf_counter() - t0, 3), "document": doc.diagnostics,
+                   "analysis": {"risks": analysis["risks"]}}
+    return {"responsePath": _publish(settings, request_id, response), "diagnostics": diagnostics}
+
+
+def _convert(settings, profile, request_id, workdir, paths, analysis, deadline, strict, t0,
+             legacy: bool = False) -> dict[str, Any]:
     docs = {}
     for lang, key in (("en", "english"), ("ar", "arabic")):
+        if lang not in paths:
+            continue
         t = time.perf_counter()
         docs[lang] = convert_document(paths[lang][0], lang, profile, settings, analysis[key], workdir / lang,
                                       deadline, strict)
         metrics.PHASE_DURATION.labels(f"convert_{lang}").observe(time.perf_counter() - t)
     t = time.perf_counter()
-    pairs = pair_claims(docs["en"], docs["ar"])
     response = workdir / "response.json"
-    size = assemble_response(pairs, response, int(settings.output.max_response_size_mb * MB))
+    limit = int(settings.output.max_response_size_mb * MB)
+    if legacy:
+        if len(docs) == 2:
+            pair_claims(docs["en"], docs["ar"])  # raises CLAIM_PAIRING_MISMATCH when the sets differ
+        size = assemble_legacy_claims(docs, response, limit)
+        count = len(set().union(*(set(d.claims) for d in docs.values())))
+    else:
+        pairs = pair_claims(docs["en"], docs["ar"])
+        size = assemble_response(pairs, response, limit)
+        count = len(pairs)
     metrics.PHASE_DURATION.labels("assemble_json").observe(time.perf_counter() - t)
     metrics.OUTPUT_BYTES.observe(size)
-    # Move the response out of the workspace: the workspace is removed when the job ends,
-    # the response file is removed after it has been streamed to the client.
-    out_dir = settings.storage.temporary_directory / RESPONSES_DIR
-    out_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    final = out_dir / f"{request_id}-{uuid.uuid4().hex[:12]}.json"
-    os.replace(response, final)
+    empty = {"imagesEmbedded": 0, "equationsMathml": 0, "equationsImage": 0, "tablesRendered": 0, "warnings": {}}
     diagnostics = {
         "requestId": request_id,
         "profile": profile.name,
-        "claimCount": len(pairs),
+        "claimCount": count,
         "responseBytes": size,
         "processingSeconds": round(time.perf_counter() - t0, 3),
-        "english": docs["en"].diagnostics,
-        "arabic": docs["ar"].diagnostics,
+        "english": docs["en"].diagnostics if "en" in docs else empty,
+        "arabic": docs["ar"].diagnostics if "ar" in docs else empty,
         "analysis": {
-            "english": {"risks": analysis["english"]["risks"], "unicode": analysis["english"]["unicode"]["claims"]},
-            "arabic": {"risks": analysis["arabic"]["risks"], "unicode": analysis["arabic"]["unicode"]["claims"]},
+            key: {"risks": analysis[key]["risks"], "unicode": analysis[key]["unicode"]["claims"]}
+            for key in ("english", "arabic") if analysis.get(key)
         },
     }
-    return {"responsePath": str(final), "diagnostics": diagnostics}
+    return {"responsePath": _publish(settings, request_id, response), "diagnostics": diagnostics}

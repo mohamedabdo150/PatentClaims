@@ -16,7 +16,7 @@ from typing import Any
 from ..api.errors import AppError, ErrorCode
 from ..config.claim_patterns import CompiledProfile
 from ..config.settings import Settings
-from ..extraction.claim_extractor import extract_claims
+from ..extraction.claim_extractor import extract_claims, extract_document
 from ..extraction.model_builder import ContentPolicy
 from ..html.sanitizer import sanitize
 from ..images.asset_pipeline import AssetPipeline
@@ -24,7 +24,7 @@ from ..ooxml.package_reader import DocxPackage
 from ..renderers.html_renderer import HtmlRenderer
 from ..renderers.html_writer import write_html
 from ..security.resource_limits import Deadline
-from ..validation.integrity import check_extraction, check_rendering
+from ..validation.integrity import check_document, check_extraction, check_rendering
 
 # Warnings that become errors when the request asks for strictValidation.
 STRICT_ESCALATE = {"UNMAPPED_SYMBOL_CHAR", "DINGBAT_FONT_TEXT", "NOTE_CONTENT_NOT_INCLUDED", "HIDDEN_TEXT_RENDERED",
@@ -59,6 +59,28 @@ def convert_document(
     if problems:
         raise AppError(ErrorCode.CONTENT_INTEGRITY_FAILED,
                        "Extracted content does not match the analyzed document.", {lang_key: problems[:50]})
+    return _render(doc, path, settings, analysis, workdir, deadline, strict, timings, lang_key, "pc-claim")
+
+
+def convert_whole_document(
+    path: Path, language: str, settings: Settings, analysis: dict[str, Any], workdir: Path, deadline: Deadline,
+    strict: bool = False,
+) -> ConvertedDocument:
+    """Entire document body as one HTML fragment (``claims`` holds one entry, key "document")."""
+    timings: dict[str, float] = {}
+    t = time.perf_counter()
+    doc = extract_document(path, language, settings, policy_from(settings), deadline)
+    timings["extract"] = time.perf_counter() - t
+    problems = check_document(analysis, doc.claims[0])
+    if problems:
+        raise AppError(ErrorCode.CONTENT_INTEGRITY_FAILED,
+                       "Extracted content does not match the analyzed document.", {"document": problems})
+    return _render(doc, path, settings, analysis, workdir, deadline, strict, timings, "document", "pc-document")
+
+
+def _render(doc, path: Path, settings: Settings, analysis: dict[str, Any], workdir: Path, deadline: Deadline,
+            strict: bool, timings: dict[str, float], lang_key: str, wrapper_class: str) -> ConvertedDocument:
+    language = doc.language
 
     errors = []
     warnings: Counter = Counter()
@@ -79,7 +101,7 @@ def convert_document(
     timings["assets"] = time.perf_counter() - t
 
     t = time.perf_counter()
-    renderer = HtmlRenderer(doc.registry)
+    renderer = HtmlRenderer(doc.registry, wrapper_class)
     out_dir = workdir / "claims"
     out_dir.mkdir(parents=True, exist_ok=True)
     files: dict[str, Path] = {}
@@ -119,16 +141,20 @@ def convert_document(
                        {lang_key: integrity[:50]})
 
     a = analysis
+    per_claim = a["claims"]["perClaim"] if lang_key != "document" else []
     diagnostics = {
-        "claimsDetected": a["claims"]["count"],
+        "claimsDetected": a["claims"]["count"] if lang_key != "document" else 0,
         "claimsExtracted": len(doc.claims),
         "claimsRendered": len(files),
-        "imageReferencesDetected": sum(c["imageReferences"] for c in a["claims"]["perClaim"]),
+        "imageReferencesDetected": (sum(c["imageReferences"] for c in per_claim) if per_claim or lang_key != "document"
+                                    else a["media"]["imageReferencesInMainDocument"]),
         "imagesEmbedded": totals["images_embedded"],
-        "equationsDetected": sum(c["equations"] for c in a["claims"]["perClaim"]),
+        "equationsDetected": (sum(c["equations"] for c in per_claim) if lang_key != "document"
+                              else a["structure"]["counts"].get("equations", 0)),
         "equationsMathml": totals["equations_mathml"],
         "equationsImage": totals["equations_image"],
-        "tablesDetected": sum(c["tables"] for c in a["claims"]["perClaim"]),
+        "tablesDetected": (sum(c["tables"] for c in per_claim) if lang_key != "document"
+                           else a["structure"]["counts"].get("tables", 0)),
         "tablesRendered": totals["tables"],
         "tablesInsideRasterizedDrawings": totals["tables_rasterized"],
         "drawingsRasterized": totals["drawings_rasterized"],
@@ -136,7 +162,7 @@ def convert_document(
         "floatingObjectsInFlow": totals["floating_objects"],
         "symbolCharsMapped": totals["symbol_chars_mapped"],
         "warnings": dict(warnings),
-        "unicodeWarnings": a["unicode"]["claims"]["warning_count"],
+        "unicodeWarnings": a["unicode"]["claims" if lang_key != "document" else "document"]["warning_count"],
         "htmlValidationFailures": 0,
         "htmlBytes": html_bytes,
         "assets": asset_stats,

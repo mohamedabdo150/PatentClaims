@@ -14,6 +14,8 @@ configured DPI.
 from __future__ import annotations
 
 import io
+import posixpath
+import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 import zipfile
@@ -26,6 +28,7 @@ from PIL import Image, ImageOps
 
 from ..ooxml.namespaces import A, R, V, W, WP, qn
 from ..ooxml.package_reader import DocxPackage
+from ..ooxml.relationships import rels_part_for
 from .subprocess_runner import ConverterError, ConverterTimeout, run_isolated
 
 EMU_PER_TWIP = 635
@@ -50,6 +53,7 @@ _CT_DEFAULTS = [
     ("tif", "image/tiff"), ("tiff", "image/tiff"), ("emf", "image/x-emf"), ("wmf", "image/x-wmf"),
     ("svg", "image/svg+xml"), ("bmp", "image/bmp"), ("bin", "application/vnd.openxmlformats-officedocument.oleObject"),
 ]
+_CONTEXT_PARTS = {"theme", "styles", "numbering", "fontTable"}
 CROP_PAGE = (31680, 16000)  # twips (~56 x 28 cm) for equations
 CALIBRATION_KEY = "zz_calibration"
 CALIBRATION_EXTENT = (914400, 457200)  # 1in x 0.5in
@@ -118,28 +122,71 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
     doc = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {NS_DECL}><w:body>{body}'
            f'<w:sectPr><w:pgSz w:w="{w}" w:h="{h}"/><w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" '
            f'w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>')
-    rels = []
+    main_part, _strict = source.main_document_part(part_limit)
+    main_rels = source.relationships(main_part, part_limit)
+    defaults, overrides = source.content_types(part_limit)
+    rel_entries: dict[str, tuple[str, str]] = {}   # rId -> (type, target relative to word/)
+    for rid, (part, rtype) in job.parts.items():
+        rel_entries[rid] = (rtype, posixpath.relpath(part, "word"))
+    copied: dict[str, None] = {}
+
+    def copy_part(zf: zipfile.ZipFile, part: str, depth: int = 0) -> None:
+        """Copy a part at its original path, with its relationships (recursively)."""
+        if part in copied or depth > 4 or not source.has_part(part):
+            return
+        copied[part] = None
+        with source.open_part_seekable(part, part_limit) as src, zf.open(part, "w") as dst:
+            shutil.copyfileobj(src, dst, 1024 * 1024)
+        rels_name = rels_part_for(part)
+        if source.has_part(rels_name):
+            zf.writestr(rels_name, source.read_part(rels_name, part_limit))
+            for rel in source.relationships(part, part_limit).values():
+                if rel.part_name and not rel.external:
+                    copy_part(zf, rel.part_name, depth + 1)
+        if overrides.get(part, "").endswith("diagramData+xml"):
+            # SmartArt: the pre-rendered drawing part is linked from the data part
+            # (dsp:dataModelExt relId=…) through the *document's* relationships.
+            data = source.read_part(part, part_limit)
+            for rid in re.findall(rb'relId="([^"]+)"', data):
+                rel = main_rels.get(rid.decode())
+                if rel and rel.part_name and not rel.external:
+                    rel_entries[rel.rel_id] = (rel.rel_type, posixpath.relpath(rel.part_name, "word"))
+                    copy_part(zf, rel.part_name, depth + 1)
+
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml",
-                    '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                    + "".join(f'<Default Extension="{e}" ContentType="{c}"/>' for e, c in _CT_DEFAULTS)
-                    + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+        # Document-wide parts the fragment depends on: theme (scheme colours/fonts used by
+        # DrawingML and SmartArt), styles, numbering and font table.
+        for rel in main_rels.values():
+            if rel.rel_type.rsplit("/", 1)[-1] in _CONTEXT_PARTS and rel.part_name and not rel.external:
+                rel_entries.setdefault(rel.rel_id, (rel.rel_type, posixpath.relpath(rel.part_name, "word")))
+                copy_part(zf, rel.part_name)
         zf.writestr("_rels/.rels",
                     '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                     '<Relationship Id="rIdDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
         zf.writestr("word/document.xml", doc)
-        for i, (rid, (part, rtype)) in enumerate(sorted(job.parts.items())):
-            ext = part.rsplit(".", 1)[-1].lower() if "." in part else "bin"
-            name = f"media/p{i}.{ext}"
-            with source.open_part_seekable(part, part_limit) as src, zf.open("word/" + name, "w") as dst:
-                shutil.copyfileobj(src, dst, 1024 * 1024)
-            rels.append(f'<Relationship Id="{escape(rid)}" Type="{escape(rtype)}" Target="{name}"/>')
+        for part, _rtype in list(job.parts.values()):
+            copy_part(zf, part)
+        blob_rels = []
         for rid, (name, data, rtype) in (job.blobs or {}).items():
             zf.writestr("word/media/" + name, data)
-            rels.append(f'<Relationship Id="{escape(rid)}" Type="{escape(rtype)}" Target="media/{name}"/>')
+            blob_rels.append(f'<Relationship Id="{escape(rid)}" Type="{escape(rtype)}" Target="media/{name}"/>')
         zf.writestr("word/_rels/document.xml.rels",
                     '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                    + "".join(rels) + "</Relationships>")
+                    + "".join(f'<Relationship Id="{escape(rid)}" Type="{escape(t)}" Target="{escape(tg)}"/>'
+                              for rid, (t, tg) in rel_entries.items())
+                    + "".join(blob_rels) + "</Relationships>")
+        part_overrides = "".join(
+            f'<Override PartName="/{escape(p)}" ContentType="{escape(overrides[p])}"/>' for p in copied if p in overrides)
+        exts = dict(_CT_DEFAULTS)
+        for p in copied:
+            ext = p.rsplit(".", 1)[-1].lower() if "." in p else ""
+            if ext and ext not in exts and ext in defaults:
+                exts[ext] = defaults[ext]
+        zf.writestr("[Content_Types].xml",
+                    '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                    + "".join(f'<Default Extension="{escape(e)}" ContentType="{escape(c)}"/>' for e, c in exts.items())
+                    + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+                    + part_overrides + "</Types>")
 
 
 class SnippetRenderer:

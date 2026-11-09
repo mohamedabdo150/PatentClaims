@@ -16,6 +16,8 @@ from fastapi import FastAPI, Request
 from . import __version__
 from .api.dependencies import REQUEST_ID_RE, AppState
 from .api.errors import install_error_handlers
+from .api.legacy_routes import LEGACY_PATHS
+from .api.legacy_routes import router as legacy_router
 from .api.routes import router
 from .config.settings import Settings, get_settings
 from .diagnostics.logging_config import configure_logging, request_id_var
@@ -73,10 +75,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return response
 
     app.include_router(router)
+    if settings.legacy.enabled:
+        app.include_router(legacy_router)
+    state.drawing_model.load_async()
     app.add_middleware(
         BodySizeLimitMiddleware,
         max_bytes=settings.processing.max_combined_bytes + MULTIPART_OVERHEAD,
-        path_prefixes=("/api/",),
+        path_prefixes=("/api/", *sorted(LEGACY_PATHS)),
     )
 
     return app

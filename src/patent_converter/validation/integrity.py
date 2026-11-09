@@ -53,3 +53,18 @@ def check_rendering(claim: Claim, rendered: dict[str, int]) -> list[dict[str, An
         if want != got:
             problems.append({"code": code, "claimNumber": claim.number, "expected": want, "actual": got})
     return problems
+
+
+def check_document(analysis: dict[str, Any], model: Claim) -> list[dict[str, Any]]:
+    """Whole-document mode: analyzer document totals == extracted model."""
+    k = model.counters
+    c = analysis["structure"]["counts"]
+    checks = {
+        "TEXT_CHARS": (analysis["unicode"]["document"]["total_chars"],
+                       k.text_chars + k.text_chars_rasterized + k.text_chars_removed),
+        "IMAGE_REFERENCES": (analysis["media"]["imageReferencesInMainDocument"], k.image_refs),
+        "EQUATIONS": (c.get("equations", 0), k.equations),
+        "TABLES": (c.get("tables", 0), k.tables + k.tables_rasterized),
+    }
+    return [{"code": code, "expected": want, "actual": got}
+            for code, (want, got) in checks.items() if want != got]

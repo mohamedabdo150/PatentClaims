@@ -29,7 +29,7 @@ def jobs_left(client) -> list:
 
 
 def test_health_ready_metrics(client):
-    assert client.get("/health").json()["status"] == "ok"
+    assert client.get("/health").json()["status"] == "OK"
     r = client.get("/ready")
     assert r.status_code == 200 and r.json()["checks"]["jobSlotAvailable"]
     m = client.get("/metrics")
