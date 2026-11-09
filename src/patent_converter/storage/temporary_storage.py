@@ -12,6 +12,7 @@ from pathlib import Path
 log = logging.getLogger("patent_converter.storage")
 JOBS_DIR = "jobs"
 RESPONSES_DIR = "responses"
+LO_PROFILES_DIR = "lo"
 
 
 class JobWorkspace:
@@ -20,8 +21,9 @@ class JobWorkspace:
     def __init__(self, root: Path, request_id: str, cleanup: bool = True):
         self.root = Path(root)
         self.cleanup = cleanup
-        safe = "".join(ch for ch in request_id if ch.isalnum() or ch in "-_")[:64] or "job"
-        self.path = self.root / JOBS_DIR / f"{safe}-{uuid.uuid4().hex[:12]}"
+        # Short names keep nested converter paths below the Windows MAX_PATH limit.
+        safe = "".join(ch for ch in request_id if ch.isalnum() or ch in "-_")[:12] or "job"
+        self.path = self.root / JOBS_DIR / f"{safe}-{uuid.uuid4().hex[:6]}"
 
     def __enter__(self) -> "JobWorkspace":
         (self.root / JOBS_DIR).mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -46,7 +48,7 @@ def sweep_stale_jobs(root: Path, max_age_minutes: int) -> int:
     """Remove job directories and undelivered responses older than the retention window."""
     cutoff = time.time() - max_age_minutes * 60
     removed = 0
-    for sub in (JOBS_DIR, RESPONSES_DIR):
+    for sub in (JOBS_DIR, RESPONSES_DIR, LO_PROFILES_DIR):
         base = Path(root) / sub
         if not base.is_dir():
             continue

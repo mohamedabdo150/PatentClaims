@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import posixpath
+import uuid
 import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -191,7 +192,7 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
 
 class SnippetRenderer:
     def __init__(self, workdir: Path, soffice: str, pdftocairo: str, dpi: int, timeout: int, batch_size: int,
-                 parallelism: int = 1):
+                 parallelism: int = 1, profile_root: Path | None = None):
         self.workdir = workdir
         self.soffice = soffice
         self.pdftocairo = pdftocairo
@@ -199,6 +200,9 @@ class SnippetRenderer:
         self.timeout = timeout
         self.batch_size = batch_size
         self.parallelism = max(1, parallelism)
+        # LibreOffice profiles are deep directory trees; Windows (MAX_PATH 260) needs them on a
+        # short path, independent of how deep the job workspace is.
+        self.profile_root = profile_root or workdir
         (workdir / "in").mkdir(parents=True, exist_ok=True)
         (workdir / "pdf").mkdir(exist_ok=True)
         (workdir / "png").mkdir(exist_ok=True)
@@ -227,7 +231,7 @@ class SnippetRenderer:
 
         def convert(idx_batch: tuple[int, list[str]]) -> list[str]:
             idx, batch = idx_batch
-            profile = (self.workdir / f"profile{idx}").resolve()
+            profile = (self.profile_root / f"{uuid.uuid4().hex[:8]}{idx}").resolve()
             outdir = self.workdir / "pdf"
             cmd = [self.soffice, "--headless", "--norestore", "--nolockcheck", "--nodefault", "--nologo",
                    f"-env:UserInstallation={profile.as_uri()}", "--convert-to", "pdf",

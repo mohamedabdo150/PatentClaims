@@ -17,7 +17,7 @@ LIMITS = dict(max_pixels=50_000_000, max_dimension=20000, max_svg_bytes=1_000_00
     (emf_bytes(200, 100), "emf", None, True),
     (wmf_bytes(), "wmf", None, True),
     (SVG_SAMPLE, "svg", (120, 80), False),
-])
+], ids=["png", "jpeg", "gif", "tiff", "emf", "wmf", "svg"])
 def test_formats(data, fmt, size, conv):
     info = probe_image(f"word/media/x.{fmt}", io.BytesIO(data), len(data), **LIMITS)
     assert info.detected_format == fmt

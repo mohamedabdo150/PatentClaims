@@ -46,9 +46,15 @@ def main() -> int:
         ok &= cond
         print(f"[{'PASS' if cond else 'FAIL'}] {name} {info}")
 
+    import time
     health = json.loads(urllib.request.urlopen(base + "/health", timeout=30).read())
     check("GET /health", health.get("status") == "OK", json.dumps(health))
-    if a.expect_model:
+    if a.expect_model:  # TensorFlow loads in the background after start-up
+        for _ in range(90):
+            if health.get("model_loaded"):
+                break
+            time.sleep(2)
+            health = json.loads(urllib.request.urlopen(base + "/health", timeout=30).read())
         check("model loaded", health.get("model_loaded") is True)
 
     body, ct = multipart({"english_file": a.fixtures / "patent_marker_en.docx",

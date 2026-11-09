@@ -22,6 +22,7 @@ from ..config.settings import MB, Settings
 from ..conversion.snippets import SnippetJob, SnippetRenderer
 from ..ooxml.namespaces import RT_IMAGE
 from ..ooxml.package_reader import DocxPackage
+from ..storage.temporary_storage import LO_PROFILES_DIR
 from .assets import Asset, AssetRegistry
 from .svg_sanitizer import SvgRejected, sanitize_svg
 
@@ -73,7 +74,8 @@ class AssetPipeline:
                 self.workdir / "snippets", self.settings.conversion.soffice_path,
                 self.settings.conversion.pdftocairo_path, self.settings.conversion.raster_dpi,
                 self.settings.conversion.libreoffice_timeout_seconds, self.settings.conversion.libreoffice_batch_size,
-                self.settings.conversion.libreoffice_parallelism)
+                self.settings.conversion.libreoffice_parallelism,
+                profile_root=self.settings.storage.temporary_directory / LO_PROFILES_DIR)
             results = renderer.render(jobs, pkg, self.limit, self.deadline_check)
             dpi = self.settings.conversion.raster_dpi
             for key, res in results.items():
