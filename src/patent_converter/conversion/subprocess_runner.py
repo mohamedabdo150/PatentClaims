@@ -138,5 +138,24 @@ def _run_windows(cmd, workdir, env, timeout, max_memory_bytes) -> subprocess.Com
         return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
     finally:
         if job is not None:
-            import win32api
-            win32api.CloseHandle(job)  # KILL_ON_JOB_CLOSE: no orphaned converter survives
+            _drain_job(job)
+
+
+def _drain_job(job, wait_seconds: float = 10.0) -> None:
+    """Terminate every process still in the job (e.g. a LibreOffice child that outlived the
+    launcher) and wait until none is left: a live process would keep the job workspace locked."""
+    import time
+
+    import win32api
+    import win32job
+
+    try:
+        win32job.TerminateJobObject(job, 0)
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            info = win32job.QueryInformationJobObject(job, win32job.JobObjectBasicAccountingInformation)
+            if info["ActiveProcesses"] == 0:
+                break
+            time.sleep(0.05)
+    finally:
+        win32api.CloseHandle(job)
