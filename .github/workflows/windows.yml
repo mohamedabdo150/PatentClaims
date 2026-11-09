@@ -29,6 +29,7 @@ jobs:
           python -c "import sys; print(sys.executable)"
           python -m pip install -r requirements-dev.txt -r requirements-windows.txt -r requirements-pdf.txt
       - name: Test suite
+        timeout-minutes: 30
         env:
           PYTHONUTF8: "1"
           TF_USE_LEGACY_KERAS: "1"
@@ -65,6 +66,7 @@ jobs:
           net start winnat
           netsh interface ipv4 show excludedportrange protocol=tcp
       - name: Run install.ps1
+        timeout-minutes: 20
         shell: pwsh
         run: >
           .\deploy\windows\install.ps1
@@ -81,6 +83,7 @@ jobs:
         shell: pwsh
         run: Get-Content C:\PatentConverter\logs\service.log -Tail 200 -ErrorAction SilentlyContinue
       - name: Uninstall (rollback path)
+        timeout-minutes: 5
         shell: pwsh
         run: |
           .\deploy\windows\uninstall.ps1 -NssmPath (Get-Command nssm).Source

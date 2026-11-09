@@ -24,8 +24,11 @@ def client(tmp_path):
 
 
 def jobs_left(client) -> list:
+    """Leftover job workspaces (with their files, to diagnose locked files on Windows)."""
     d = client.work / "jobs"
-    return list(d.iterdir()) if d.exists() else []
+    if not d.exists():
+        return []
+    return [(p.name, sorted(str(f.relative_to(p)) for f in p.rglob("*"))[:15]) for p in d.iterdir()]
 
 
 def test_health_ready_metrics(client):

@@ -31,6 +31,24 @@ param(
 $ErrorActionPreference = "Stop"
 function Step($m) { Write-Host "==> $m" -ForegroundColor Cyan }
 function Fail($m) { Write-Host "ERROR: $m" -ForegroundColor Red; exit 1 }
+function Stop-ServiceTree([string]$Name) {
+  # Stop via the Service Control Manager; never wait forever (kill the process tree after 60 s).
+  $svc = Get-CimInstance Win32_Service -Filter "Name='$Name'" -ErrorAction SilentlyContinue
+  if (-not $svc) { return }
+  $svcPid = $svc.ProcessId
+  if ($svc.State -ne "Stopped") {
+    $job = Start-Job { param($n) Stop-Service -Name $n -Force -ErrorAction SilentlyContinue } -ArgumentList $Name
+    if (-not (Wait-Job $job -Timeout 60)) { Write-Warning "service did not stop within 60 s; terminating its process tree" }
+    Remove-Job $job -Force -ErrorAction SilentlyContinue
+  }
+  if ($svcPid -and (Get-Process -Id $svcPid -ErrorAction SilentlyContinue)) { & taskkill /T /F /PID $svcPid | Out-Null }
+}
+function Remove-ServiceEntry([string]$Name) {
+  Stop-ServiceTree $Name
+  if (Get-Service -Name $Name -ErrorAction SilentlyContinue) { & sc.exe delete $Name | Out-Null }
+  for ($i = 0; $i -lt 30 -and (Get-Service -Name $Name -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Seconds 1 }
+}
+
 
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { Fail "run this script as Administrator" }
@@ -92,9 +110,8 @@ New-Item -ItemType Directory -Force -Path $DataDir, (Join-Path $DataDir "spool")
 & icacls (Join-Path $InstallDir "logs") /grant "${ServiceAccount}:(OI)(CI)M" | Out-Null
 
 Step "Registering service $ServiceName"
-$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($existing) { & $NssmPath stop $ServiceName | Out-Null; & $NssmPath remove $ServiceName confirm | Out-Null }
-$uvArgs = "-m uvicorn patent_converter.main:create_app --factory --host 0.0.0.0 --port $Port --workers $Workers --timeout-keep-alive 75 --no-server-header"
+if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) { Remove-ServiceEntry $ServiceName }
+$uvArgs = "-m uvicorn patent_converter.main:create_app --factory --host 0.0.0.0 --port $Port --workers $Workers --timeout-keep-alive 75 --timeout-graceful-shutdown 10 --no-server-header"
 & $NssmPath install $ServiceName $VPy $uvArgs | Out-Null
 & $NssmPath set $ServiceName AppDirectory $App | Out-Null
 & $NssmPath set $ServiceName DisplayName "Patent Claims Converter" | Out-Null
