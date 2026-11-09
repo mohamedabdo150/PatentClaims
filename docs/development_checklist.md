@@ -1,59 +1,62 @@
 # Development checklist
 
 ## Phase 1 — Repository & architecture ✅
-- [x] Environment inspected (Python 3.13, lxml, Pillow, LibreOffice 24.2, Docker available; **no patent DOCX files provided**)
-- [x] Project structure (`src/patent_converter`), pinned requirements, pyproject
-- [x] Settings (YAML + env) with startup validation and business-rule enforcement
-- [x] Claim-pattern profiles: validated, compiled at startup, selectable per request
-- [x] API contract (success schema fixed, structured errors, status codes)
-- [x] Canonical document model (`models/document_model.py`)
-- [x] Supported-content matrix (`docs/supported_elements.md`)
-- [x] Runnable skeleton: `/health`, `/ready`, `/metrics`, `/convert` (validation path), `/analyze`
-- [x] Auth (hashed API keys), rate limit, job slots, body-size middleware, timeouts, workspaces, cleanup
-- [x] Dockerfile / compose (prod + dev), `.env.example`; image built and verified
+Project structure, pinned dependencies, settings with startup validation,
+claim-pattern profiles, API contract, canonical model, supported-elements matrix,
+runnable skeleton, Docker.
 
-## Phase 2 — DOCX Capability Analyzer ✅ (on synthetic documents)
-- [x] ZIP screening without decompression (bomb ratios, entries, sizes, traversal, symlinks, encryption, macros)
-- [x] Secure XML (DTD/entity rejection, no network, depth guard)
-- [x] Streaming `document.xml` scan; per-block release
-- [x] All 20 required report items (see mapping below)
-- [x] Claim detection with configurable patterns; numbering labels; SEQ fields; content controls
-- [x] Header-only image probing (format by magic bytes, dimensions, frames, alpha, DPI)
-- [x] Risk evaluation, HTML/JSON/NVARCHAR size estimate
-- [x] JSON + human-readable reports; CLI and diagnostic API endpoint; no patent text by default
-- [x] Bilingual number-based pairing comparison
-- [x] 78 automated tests (unit, integration, API, security), passing locally and inside the image with pinned deps
-- [x] Benchmarks: 10–100 MB × 500 claims; end-to-end 2 × 97 MB through uvicorn
-- [ ] **Run on real patent documents** ← blocked: no files available
+## Phase 2 — DOCX Capability Analyzer ✅ (synthetic documents)
+ZIP screening, secure XML, streaming scan, all 20 report items, claim detection
+(patterns, numbering labels, SEQ fields, content controls), header-only image
+probing, risks, size estimates, CLI + `/analyze`.
 
-### Required report items → report fields
-1 file size `file.sizeBytes` · 2 uncompressed `package.uncompressed_size` · 3 entries `package.entry_count` ·
-4 paragraphs `structure.counts.paragraphs` · 5 tables `…tables/nested_tables` · 6 claim markers `claims.perClaim[].startBlock` ·
-7 claim count `claims.count` · 8 images `media.count` · 9 formats `media.formats` · 10 image size `media.totalBytes` ·
-11 dimensions `media.images[].width_px/height_px` · 12 DrawingML `…drawings/drawing_inline/drawing_anchor/drawing_groups` ·
-13 VML `…vml_pict/vml_shapes/vml_imagedata` · 14 text boxes `…textboxes` · 15 OMML `…equations` + `ommlConstructs` ·
-16 OLE `…ole_objects` + `oleProgIds` · 17 hyperlinks `…hyperlinks` · 18 unsupported XML `structure.unknownElements` ·
-19 estimated HTML `estimates.*` · 20 risks `risks[]`
+## Phase 3 — Claim extraction engine ✅
+- [x] Style resolution (docDefaults, paragraph/character/table style chains)
+- [x] Model builder: runs, paragraphs, hyperlinks, dir/bdo, tables (spans, borders, shading), images, text boxes, drawings, VML, OLE previews, equations, note references
+- [x] Symbol-font → Unicode mapping
+- [x] Streaming extractor sharing block stream and detector with the analyzer
+- [x] Integrity: analyzer == extractor per claim (text chars, image refs, equations, tables)
+- [x] Content issues classified as error / warning; tracked-changes policy
 
-## Decisions needed from the product owner
-1. **Real documents + production claim patterns.** Provide representative EN/AR patents (incl. chemical ones) so the analyzer can confirm patterns, numbering style and object types.
-2. **Response size.** 2 × 100 MB image-heavy inputs ⇒ ≈ 270–280 MB JSON vs. the 100 MB limit (see performance.md).
-3. **Tracked changes policy.** Reject, or render the "accepted" view (insertions kept, deletions removed)?
-4. **Floating drawings.** Accept flow-layout approximation, or rasterize anchored content with its paragraph?
-5. **OLE objects.** Confirm that the stored preview image is an acceptable rendering (it is the only safe option; objects are never executed).
-6. **CKEditor version** used by OutSystems (4 vs 5 and its HTML/MathML filtering config) — determines equation output (MathML vs image).
-7. **Synchronous 30-min requests** — confirm all timeouts on the OutSystems → LB → service path.
+## Phase 4 — Rendering engine ✅
+- [x] OMML → MathML converter with unsupported-construct detection
+- [x] Isolated LibreOffice snippet renderer (batched, killable, rlimits, calibrated placement)
+- [x] Asset pipeline: raster validation, BMP/TIFF → PNG, SVG sanitizer, EMF/WMF, groups, VML, equation fallbacks
+- [x] HTML renderer (semantic, dir/lang, CSS allowlist) + Base64 streaming writer
+- [x] Allowlist HTML sanitizer; generated output must pass unchanged
+- [x] Rendered output integrity (text, images, equations, tables)
 
-## Known limitations (current)
-- Tests use synthetic documents written to mirror Word's OOXML; they prove structure handling, not coverage of every real-world authoring tool.
-- Numbering resolution: counters per abstract numbering definition; unusual `w:lvlOverride` combinations may differ from Word (claims numbered this way are flagged `CLAIMS_AUTO_NUMBERED` for verification).
-- Symbol-font characters are detected, not yet mapped to Unicode.
-- Rate limiting and readiness are per uvicorn worker.
-- Job isolation is thread + cooperative deadline; subprocess isolation with rlimits is planned for EMF/WMF conversion (Phase 4/6).
-- `max_worker_memory_mb` is not enforced yet (Phase 6).
-- Libxml2 rejects XML nesting deeper than 256 unless `xml_huge_tree` is enabled.
+## Phase 5 — Bilingual pairing ✅
+- [x] Number-keyed pairing, natural order, exact contract
+- [x] Streaming JSON assembly with the size limit enforced while writing
+- [x] FileResponse streaming; response deleted after delivery; stale sweeping
+- [x] Diagnostics headers and endpoint; `strictValidation`
 
-## Next: Phase 3 — Claim extraction engine
-Reuse `ClaimBoundaryDetector` + block streaming; build canonical `Claim` objects
-(paragraphs/runs/tables/drawings/equations/objects in order) per claim, writing
-each finished claim to the workspace as it closes so memory stays bounded.
+## Phase 6 — Large-document optimisation ✅ (sandbox)
+- [x] Disk-backed processing end to end; one claim skeleton in memory
+- [x] Benchmarks 10–100 MB × 500 claims per language through a real server and in the container
+- [x] Memory measurement corrected to `VmHWM` (child `ru_maxrss` inherits the parent's peak)
+- [x] CKEditor 4 / 5 round-trip compatibility measured
+- [x] Visual review tooling (`scripts/visual_review.py`)
+
+## Phase 7 — Docker & deployment 🟡
+- [x] Ubuntu 24.04 image with LibreOffice/poppler/fonts, non-root, read-only, healthcheck, build-CA secret
+- [x] Compose (prod + dev), `.env.example`, deployment and two-node guide
+- [ ] Deploy on the two target nodes behind the load balancer
+
+## Phase 8 — Integration & acceptance ⛔ (customer environment)
+- [ ] Real Arabic/English patents: analyzer reports, verified pattern profile, regression fixtures
+- [ ] OutSystems REST consume with a maximum-size response; SQL Server persistence; CKEditor in the application
+- [ ] Decision on `max_response_size_mb`
+- [ ] Benchmarks on 16 vCPU / 64 GB nodes; security review
+
+## Known limitations
+- All verification uses synthetic documents written to mirror Word's OOXML; real authoring tools (ChemDraw, MathType, older Word versions) may produce variants not yet seen.
+- Numbering resolution keeps counters per abstract numbering definition; unusual `w:lvlOverride` combinations may differ from Word (flagged `CLAIMS_AUTO_NUMBERED`).
+- Floating objects are placed in flow at their anchor; text wrapping and absolute page positions are not reproduced.
+- Rasterized drawings (groups, shapes, VML, metafiles) become images: text inside them is not selectable in HTML (it is counted and reported as rasterized).
+- Footnote/endnote text is outside the claim; only the reference mark is rendered (warning).
+- Dingbat-font characters (Wingdings etc.) are kept with their font; browsers without that font show a substitute glyph (warning).
+- LibreOffice rendering of OMML/metafiles can differ slightly from Word's rendering.
+- Diagnostics endpoint, rate limiter and readiness are per worker process.
+- `max_worker_memory_mb` is enforced through the container memory limit, not in-process.

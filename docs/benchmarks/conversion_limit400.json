@@ -1,0 +1,49 @@
+{
+  "maxResponseMB": 400.0,
+  "results": [
+    {
+      "pair": "large_50mb",
+      "inputMB": 97.4,
+      "status": 200,
+      "seconds": 8.14,
+      "responseMB": 131.0,
+      "peakTreeRssMB": 273,
+      "claims": 500,
+      "imagesEmbedded": 94,
+      "timings": {
+        "english": {
+          "extract": 0.092,
+          "assets": 2.107,
+          "render": 0.394
+        },
+        "arabic": {
+          "extract": 0.218,
+          "assets": 2.553,
+          "render": 0.355
+        }
+      }
+    },
+    {
+      "pair": "large_100mb",
+      "inputMB": 194.7,
+      "status": 200,
+      "seconds": 9.47,
+      "responseMB": 260.8,
+      "peakTreeRssMB": 288,
+      "claims": 500,
+      "imagesEmbedded": 128,
+      "timings": {
+        "english": {
+          "extract": 0.108,
+          "assets": 2.392,
+          "render": 0.477
+        },
+        "arabic": {
+          "extract": 0.213,
+          "assets": 2.363,
+          "render": 0.523
+        }
+      }
+    }
+  ]
+}

@@ -1,49 +1,59 @@
 # Patent Claims Converter
 
-Bilingual (Arabic / English) patent-claims DOCX → HTML conversion platform for
+Bilingual (Arabic / English) patent-claims DOCX → HTML conversion service for
 OutSystems + CKEditor + SQL Server.
 
-> **Status: Phase 1 (architecture, skeleton) and Phase 2 (DOCX Capability
-> Analyzer) are complete.** Claim extraction into the canonical model,
-> HTML rendering, image/equation conversion and response assembly (Phases 3–6)
-> are **not implemented yet**. `POST /api/v1/patent/claims/convert` already runs
-> the full intake, security screening, claim-boundary detection and
-> number-based pairing validation, and returns `501 CONVERSION_NOT_IMPLEMENTED`
-> when a pair passes all of them. See [docs/development_checklist.md](docs/development_checklist.md).
+`POST /api/v1/patent/claims/convert` takes an English and an Arabic DOCX,
+extracts the claims of each document independently with configurable patterns,
+renders every claim to self-contained HTML (all images Base64-embedded), pairs
+the claims **by claim number** and returns one complete response:
 
-## What works today
+```json
+{"claims": [{"claimNumber": "1", "claimAr": "<div dir=\"rtl\" …>", "claimEn": "<div dir=\"ltr\" …>"}]}
+```
 
-| Capability | State |
+Any condition that would make the result incomplete (unsupported content, image
+conversion failure, pairing mismatch, output limit, timeout) returns a structured
+error instead — never a partial `200`.
+
+> **Status:** Phases 1–6 implemented and verified on synthetic documents.
+> Phase 7 (deployment) is implemented, but not on the target nodes. Phase 8
+> (OutSystems, SQL Server and production acceptance) needs your environment.
+> **Real patent documents have not been tested yet.** See
+> [docs/production_readiness.md](docs/production_readiness.md).
+
+## Highlights
+
+| Area | What is implemented |
 |---|---|
-| FastAPI service, `/health`, `/ready`, `/metrics` (Prometheus) | ✅ |
-| API-key auth (SHA-256 hashed keys), rate limiting, per-worker job slots (429) | ✅ |
-| Streaming disk-spooled uploads, size limits (413), signature checks (415) | ✅ |
-| Per-request isolated workspaces with guaranteed cleanup, stale-job sweeping | ✅ |
-| ZIP-bomb / path-traversal / symlink / macro / encrypted-entry screening | ✅ |
-| Secure XML (DTD/entity rejection, no network, depth guard) | ✅ |
-| Streaming `document.xml` scan (bounded memory) | ✅ |
-| Configurable regex claim-boundary detection (EN/AR, explicit end or next-start mode) | ✅ |
-| Word list-numbering resolution (auto-numbered claims), SEQ fields, content controls | ✅ |
-| Number-based bilingual pairing validation with the required error contract | ✅ |
-| DOCX Capability Analyzer (CLI + diagnostic API endpoint), JSON + text reports | ✅ |
-| Canonical document model (definitions) | ✅ (populated from Phase 3) |
-| Claim HTML rendering, Base64 embedding, OMML→MathML, EMF/WMF conversion | ❌ Phase 3–4 |
-| Final `{"claims": [...]}` response assembly | ❌ Phase 5–6 |
+| Extraction | Streaming `document.xml` pass, configurable regex claim boundaries (EN/AR, explicit-end or next-start mode), Word list numbering, SEQ fields, content controls |
+| Fidelity | Exact text (no translation/normalization), Symbol-font → Unicode, RTL via `dir`/`lang`, run formatting, tables with row/col spans and borders, text boxes, hyperlinks |
+| Images | PNG/JPEG/GIF/WebP as-is, BMP/TIFF → PNG, sanitized SVG, EMF/WMF + drawing groups/canvases/VML shapes rendered by isolated LibreOffice with exact placement |
+| Equations | Own OMML → MathML converter; equations outside its coverage are rendered from the original OMML to images; `equation_mode: image` switch |
+| Integrity | Independent analyzer and extractor passes must agree exactly per claim (text characters, image references, equations, tables); rendered HTML must contain all of it; sanitizer must not change generated HTML |
+| Security | ZIP-bomb/traversal/macro screening, DTD/entity rejection, allowlist HTML + SVG sanitizers, no network access during conversion, non-root read-only container |
+| Scale | 2 × 97 MB, 1 000 claims, 128 images, 273 MB response: **~11 s, < 0.5 GiB** container memory (synthetic) |
 
 ## Quick start (development)
 
+Requirements: Python 3.12+, LibreOffice (writer, draw, math), poppler-utils.
+
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                                   # 78 tests
-python scripts/generate_fixtures.py --out fixtures/  # synthetic bilingual DOCX set
-python scripts/analyze_docx.py --en fixtures/patent_en.docx --ar fixtures/patent_ar.docx \
-       --profile synthetic-test --out reports/
+python -m pytest -q                                    # 120 tests (performance test: -m performance)
+python scripts/generate_fixtures.py --out fixtures/   # synthetic bilingual DOCX set
 PATENT_CONFIG_FILE=config/app.dev.yaml PYTHONPATH=src \
-       uvicorn patent_converter.main:create_app --factory --port 8000
+  uvicorn patent_converter.main:create_app --factory --port 8000
+curl -F englishFile=@fixtures/patent_en.docx -F arabicFile=@fixtures/patent_ar.docx \
+     -F configProfile=synthetic-test localhost:8000/api/v1/patent/claims/convert
 ```
 
-**Run the analyzer on your real patent files first** (`--profile example`), then
-create and verify a production pattern profile in `config/claim_patterns.yaml`.
+**Before production:** run the analyzer on real patents and create a verified
+claim-pattern profile:
+
+```bash
+python scripts/analyze_docx.py --en real_en.docx --ar real_ar.docx --profile example --out reports/
+```
 
 ## Docker
 
@@ -53,22 +63,29 @@ docker compose up -d --build
 curl localhost:8000/ready
 ```
 
-Behind a TLS-inspecting proxy add `--secret id=pip_ca,src=/path/ca.pem` to `docker build`.
+Behind a TLS-inspecting proxy, add `--secret id=build_ca,src=/path/ca.pem` to `docker build`.
+
+## CKEditor: configuration is mandatory
+
+With CKEditor's **default** content filter, `<sub>`/`<sup>` (C₆H₆ → C6H6),
+`dir` attributes and MathML are stripped. That was verified against CKEditor 4.22.1
+and 5 (47.4). Use the configuration in [docs/ckeditor_integration.md](docs/ckeditor_integration.md).
 
 ## Documentation
 
 * [Architecture](docs/architecture.md) · [API](docs/api.md) · [Configuration](docs/configuration.md)
-* [Supported elements matrix](docs/supported_elements.md) · [Performance & sizing](docs/performance.md)
-* [Deployment](docs/deployment.md) · [Development checklist & limitations](docs/development_checklist.md)
-* Analyzer reports for the synthetic fixtures: [docs/analysis/](docs/analysis/)
+* [Supported elements](docs/supported_elements.md) · [Performance](docs/performance.md) · [Deployment](docs/deployment.md)
+* [OutSystems integration](docs/outsystems_integration.md) · [CKEditor integration](docs/ckeditor_integration.md)
+* [Troubleshooting](docs/troubleshooting.md) · [Production readiness](docs/production_readiness.md)
+* [Development checklist & limitations](docs/development_checklist.md)
 
-## Troubleshooting
+## Tooling
 
-| Symptom | Cause / action |
+| Script | Purpose |
 |---|---|
-| Container exits: `production with auth_enabled requires ... api_key_sha256` | Set `PATENT__SECURITY__API_KEY_SHA256='["<sha256-hex>"]'`. |
-| `CLAIMS_SECTION_NOT_FOUND` / `NO_CLAIMS_DETECTED` | Pattern profile does not match the document. Run `scripts/analyze_docx.py --samples` (confidential output!) and tune `config/claim_patterns.yaml`. |
-| `CLAIMS_AUTO_NUMBERED` risk | Claim numbers come from Word numbering; verify the resolved numbers against Word. |
-| `ORPHAN_CONTENT` | Content inside the claims section matched no claim (often an explicit end pattern firing early). |
-| `INVALID_DOCX_STRUCTURE` with "Excessive depth" | XML nesting > 256; set `security.xml_huge_tree: true` only if a legitimate document needs it. |
-| `429 CONCURRENCY_LIMIT` | Worker busy; `/ready` returns 503 meanwhile so the load balancer can route elsewhere. |
+| `scripts/analyze_docx.py` | DOCX Capability Analyzer (JSON + text reports) |
+| `scripts/generate_fixtures.py` | synthetic fixtures, incl. large benchmark documents |
+| `scripts/benchmark_analysis.py` | analyzer time / memory per document |
+| `scripts/benchmark_conversion.py` | end-to-end conversion through a real server (time, peak memory of the process tree, response size) |
+| `scripts/visual_review.py` | side-by-side review sheet: source DOCX (LibreOffice) vs converted HTML (Chromium) |
+| `tests/ckeditor/*.js` | CKEditor 4 / 5 round-trip compatibility checks (Node + Playwright) |

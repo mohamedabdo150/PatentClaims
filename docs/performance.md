@@ -1,53 +1,68 @@
 # Performance and sizing
 
-## Phase 2 measurements (synthetic documents)
+All numbers below come from **synthetic** documents on a 4 vCPU / 15 GB cloud
+sandbox, not on the 16 vCPU / 64 GB target nodes. They show the scaling
+behaviour, not final sizing. Real patents with many drawings need their own
+benchmark (same scripts).
 
-Environment: 4 vCPU / 15 GB cloud sandbox, Python 3.13, lxml 6.1. Documents: 500
-claims each, incompressible 1000×1000 PNG images (worst case for size), OMML
-every 10 claims. Raw data: [benchmarks/analyzer_synthetic.json](benchmarks/analyzer_synthetic.json).
+## Benchmark documents
+`scripts/generate_fixtures.py --large 10 25 50 100 --claims 500`: per language,
+500 claims, incompressible 1000×1000 PNG photos (worst case for Base64 size), an
+EMF figure every 25 claims, a drawing group every 50 claims and an OMML equation
+every 10 claims.
 
-| File | DOCX MB | Claims | Images | Analyze s | Peak RSS | Est. claims HTML |
-|---|---:|---:|---:|---:|---:|---:|
-| large_10mb_en | 8.6 | 500 | 3 | 0.11 | 41 MB | 12.2 MB |
-| large_25mb_en | 22.9 | 500 | 8 | 0.13 | 41 MB | 31.3 MB |
-| large_50mb_en | 48.7 | 500 | 17 | 0.17 | 41 MB | 65.6 MB |
-| large_100mb_en | 97.4 | 500 | 34 | 0.19 | 41 MB | 130.5 MB |
-| large_100mb_ar | 97.4 | 500 | 34 | 0.27 | 41 MB | 130.8 MB |
+## End-to-end conversion (`scripts/benchmark_conversion.py`)
+Real uvicorn server; peak memory = the **whole process tree** (Python and
+LibreOffice children). Raw data: `benchmarks/conversion_limit100.json` and
+`benchmarks/conversion_limit400.json`.
 
-End-to-end through uvicorn (`/analyze` and `/convert` validation path) with a
-2 × 97.4 MB multipart upload (204 MB body): **1.1–1.2 s total, server peak RSS
-67 MB**, workspace and spool files removed afterwards.
+| Pair (EN + AR) | Input | `max_response_size_mb` | Result | Time | Response | Peak tree RSS |
+|---|---:|---:|---|---:|---:|---:|
+| large_10mb | 17.2 MB | 100 | 200, 1 000 claims, 66 images | 6.1 s | 24.1 MB | 284 MB |
+| large_25mb | 45.8 MB | 100 | 200, 76 images | 7.2 s | 62.3 MB | 284 MB |
+| large_50mb | 97.4 MB | 100 | **422 OUTPUT_LIMIT_EXCEEDED** | 6.9 s | — | 295 MB |
+| large_100mb | 194.7 MB | 100 | **422 OUTPUT_LIMIT_EXCEEDED** | 7.4 s | — | 267 MB |
+| large_50mb | 97.4 MB | 400 | 200, 94 images | 8.1 s | 131.0 MB | 273 MB |
+| large_100mb | 194.7 MB | 400 | 200, 128 images | 9.5 s | 260.8 MB | 288 MB |
 
-**What this proves:** intake, screening, streaming XML scan and header-only image
-probing are memory-bounded and fast. **What it does not prove:** conversion cost.
-Rendering, image conversion (EMF/WMF/TIFF), Base64 encoding and JSON assembly
-(Phases 4–6) will dominate time and memory and must be benchmarked on real
-patents before sizing is confirmed.
+Production container (hardened, `WORKERS=1`, Docker image `patent-converter:1.0.0`),
+2 × 97 MB with the limit at 400 MB: **200, 273 MB response, 10.9 s** including
+upload and download, **peak container memory 486 MiB** (`docker stats`, includes
+page cache).
 
-## Output-size finding (action required)
+Memory stays flat from 17 MB to 195 MB of input: images and HTML are streamed
+to and from disk, and only one claim's HTML skeleton is held at a time.
 
-Base64 adds 33 %; image-heavy DOCX produce HTML ≈ 1.34 × the DOCX size
-(more when EMF/WMF/TIFF are converted to PNG). For 2 × 100 MB inputs the
-estimated JSON response is **≈ 270–280 MB**, which:
+## Analyzer only (`scripts/benchmark_analysis.py`)
+Peak memory of a fresh process (`VmHWM`) ≈ 41 MB and < 0.3 s per 97 MB / 500-claim
+document (`benchmarks/analyzer_synthetic.json`).
 
-* exceeds the specified `output.max_response_size_mb: 100`;
-* must pass through OutSystems REST deserialization (platform limits and memory)
-  and gateway buffering;
-* becomes ≈ 2× in SQL Server `NVARCHAR(MAX)` (UTF-16) – ~550 MB across rows.
+## Where the time goes
+* LibreOffice start-up ≈ 1–2 s per batch, then ≈ 0.1–0.3 s per snippet. All
+  snippets of a document go into one process per `libreoffice_batch_size` (100).
+  Identical media at the same size are converted once and embedded at each
+  occurrence.
+* Base64 + JSON assembly of 270 MB ≈ 1–2 s (disk bound).
+* Rendering and extraction of 500 claims < 0.1 s.
 
-Options to decide before Phase 6 (contract changes need approval):
-1. Raise `max_response_size_mb` after measuring the OutSystems path with a real
-   maximum-size response.
-2. Keep the contract but reduce embedded size without degrading drawings
-   (lossless PNG optimisation, de-duplicate repeated images *within a claim*).
-3. Approve an alternative delivery (e.g. per-claim retrieval) – not implemented
-   without approval.
+Documents with hundreds of distinct EMF/WMF figures or drawing groups will be
+dominated by LibreOffice time. Expect roughly 0.2 s per distinct figure on
+these CPUs. Increase `libreoffice_batch_size` or `processing.max_processing_seconds`
+as measured.
 
-The analyzer reports `ESTIMATED_RESPONSE_EXCEEDS_LIMIT` per document and a
-combined estimate per pair so real patents can be assessed now.
+## Output size (decision required)
+Base64 adds 33 %, so the response is ≈ 1.34 × the embedded image bytes plus markup.
+A 2 × 100 MB image-heavy pair produced a **261–273 MB** response, and
+`NVARCHAR` (UTF-16) storage doubles that. The specified 100 MB limit therefore
+rejects image-heavy pairs above ≈ 2 × 37 MB. The limit is configurable; raise it
+only after the OutSystems path has been measured with a real maximum-size
+response ([outsystems_integration.md](outsystems_integration.md)).
 
-## Synchronous 30-minute requests
-Load balancers, reverse proxies and OutSystems REST integrations typically have
-timeouts far below 30 minutes. All timeouts on the path (OutSystems
-integration timeout, LB idle timeout, uvicorn keep-alive) must be configured and
-verified in Phase 8.
+## Sizing guidance for the target nodes (to be validated)
+* One conversion per worker (`max_concurrent_jobs_per_worker: 1`). Measured
+  peak ≈ 0.3–0.5 GB per job here, so memory is not the constraint on 64 GB nodes.
+  CPU (LibreOffice) and response size are.
+* `WORKERS` = 2–4 per node allows parallel conversions. `/ready` returns 503
+  while a worker is busy, so the load balancer spreads jobs across nodes.
+* Temporary storage per job ≈ 2 × input + 2 × response (workspace + response
+  file); keep `min_free_disk_gb` above `WORKERS` × that.

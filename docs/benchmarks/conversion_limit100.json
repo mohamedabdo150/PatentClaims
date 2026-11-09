@@ -1,0 +1,67 @@
+{
+  "maxResponseMB": 100,
+  "results": [
+    {
+      "pair": "large_10mb",
+      "inputMB": 17.2,
+      "status": 200,
+      "seconds": 6.11,
+      "responseMB": 24.1,
+      "peakTreeRssMB": 284,
+      "claims": 500,
+      "imagesEmbedded": 66,
+      "timings": {
+        "english": {
+          "extract": 0.092,
+          "assets": 2.147,
+          "render": 0.128
+        },
+        "arabic": {
+          "extract": 0.257,
+          "assets": 2.619,
+          "render": 0.148
+        }
+      }
+    },
+    {
+      "pair": "large_25mb",
+      "inputMB": 45.8,
+      "status": 200,
+      "seconds": 7.24,
+      "responseMB": 62.3,
+      "peakTreeRssMB": 284,
+      "claims": 500,
+      "imagesEmbedded": 76,
+      "timings": {
+        "english": {
+          "extract": 0.079,
+          "assets": 2.884,
+          "render": 0.154
+        },
+        "arabic": {
+          "extract": 0.29,
+          "assets": 2.467,
+          "render": 0.199
+        }
+      }
+    },
+    {
+      "pair": "large_50mb",
+      "inputMB": 97.4,
+      "status": 422,
+      "seconds": 6.92,
+      "responseMB": 0.0,
+      "peakTreeRssMB": 295,
+      "error": "OUTPUT_LIMIT_EXCEEDED"
+    },
+    {
+      "pair": "large_100mb",
+      "inputMB": 194.7,
+      "status": 422,
+      "seconds": 7.35,
+      "responseMB": 0.0,
+      "peakTreeRssMB": 267,
+      "error": "OUTPUT_LIMIT_EXCEEDED"
+    }
+  ]
+}

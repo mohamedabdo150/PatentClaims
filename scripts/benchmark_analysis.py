@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import resource
 import subprocess
 import sys
 import time
@@ -20,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CHILD = r"""
-import json, sys, time, resource
+import json, sys, time
 sys.path.insert(0, sys.argv[1] + "/src")
 from patent_converter.analyzer.docx_analyzer import DocxAnalyzer
 from patent_converter.config.claim_patterns import PatternRegistry
@@ -30,7 +29,8 @@ prof = PatternRegistry.from_file(s.claim_patterns_file).get(sys.argv[3])
 t = time.perf_counter()
 rep = DocxAnalyzer(s, prof).analyze(sys.argv[2], sys.argv[4])
 el = time.perf_counter() - t
-print(json.dumps({"seconds": el, "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+hwm = int([l.split()[1] for l in open("/proc/self/status") if l.startswith("VmHWM")][0])
+print(json.dumps({"seconds": el, "peak_rss_mb": hwm / 1024,
   "claims": rep.get("claims", {}).get("count"), "images": rep.get("media", {}).get("count"),
   "status": rep["status"], "timings": rep["timingsSeconds"],
   "estimated_html_mb": rep.get("estimates", {}).get("estimatedHtmlBytes", 0) / 1048576}))

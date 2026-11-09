@@ -22,11 +22,11 @@ startup.
 | `processing.max_claims_per_document` | 500 | more → `TOO_MANY_CLAIMS` |
 | `processing.max_processing_seconds` | 1800 | job deadline (504) |
 | `processing.max_concurrent_jobs_per_worker` | 1 | job slots per uvicorn worker (429 when full) |
-| `processing.max_worker_memory_mb` | 40960 | reserved for Phase 6 enforcement (rlimits) |
+| `processing.max_worker_memory_mb` | 40960 | not enforced in-process (measured peak ≈ 0.5 GB); enforce with the container memory limit (`MEMORY_LIMIT`) |
 | `storage.temporary_directory` | `/data/patent-processing` | job workspaces (NVMe volume) |
 | `storage.min_free_disk_gb` | 20 | below → `/ready` 503 and jobs rejected |
 | `storage.stale_job_retention_minutes` | 120 | crash-recovery sweep age |
-| `output.max_response_size_mb` | 100 | **see performance.md: likely too small for 2×100 MB image-heavy inputs** |
+| `output.max_response_size_mb` | 100 | measured while the response is written; `OUTPUT_LIMIT_EXCEEDED` when exceeded. **See performance.md: 2×100 MB image-heavy pairs produce ≈ 270 MB** |
 | `security.max_zip_entries` | 10000 | |
 | `security.max_uncompressed_size_mb` | 1024 | total of central-directory sizes |
 | `security.max_compression_ratio` | 150 | whole package (only when ≥ 1 MB uncompressed) |
@@ -39,6 +39,16 @@ startup.
 | `security.reject_macro_documents` | true | VBA project / macro content types |
 | `security.api_key_sha256` | `[]` | SHA-256 hex digests of accepted keys |
 | `security.rate_limit_requests_per_minute` | 30 | per worker per client; 0 disables |
+| `conversion.raster_dpi` | 192 | resolution of rasterized drawings, metafiles and equation images (2× CSS pixels) |
+| `conversion.libreoffice_timeout_seconds` | 600 | per LibreOffice batch; the process tree is killed on timeout |
+| `conversion.libreoffice_batch_size` | 100 | snippets per LibreOffice process |
+| `conversion.prefer_svg` | true | embed Word's SVG (sanitized) instead of its PNG fallback |
+| `conversion.max_asset_mb` | 200 | largest single media part read |
+| `conversion.soffice_path` / `pdftocairo_path` | soffice / pdftocairo | external converters |
+| `content.tracked_changes` | reject | `reject` → `UNSUPPORTED_CONTENT`; `accept` renders insertions and drops deletions (counted) |
+| `content.hidden_text` | render | `render` (warning) or `drop` (counted as removed) |
+| `content.equation_mode` | mathml | `mathml` (image fallback per unsupported equation) or `image` (all equations as images) |
+| `content.preserve_font_family` / `preserve_font_size` | true | emit only when different from the document default |
 | `analysis.markup_overhead_factor` | 2.5 | HTML size estimate heuristic |
 | `analysis.include_text_samples` | false | CLI `--samples` only; never via API |
 

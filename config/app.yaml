@@ -47,6 +47,22 @@ security:
   api_key_sha256: []
   rate_limit_requests_per_minute: 30
 
+conversion:
+  soffice_path: soffice
+  pdftocairo_path: pdftocairo
+  raster_dpi: 192                  # rasterized drawings/metafiles/equation fallbacks (2x CSS pixels)
+  libreoffice_timeout_seconds: 600 # per LibreOffice batch (process tree killed on timeout)
+  libreoffice_batch_size: 100
+  prefer_svg: true                 # use sanitized SVG when Word stored one (asvg:svgBlip)
+  max_asset_mb: 200
+
+content:
+  tracked_changes: reject          # reject | accept (render the accepted view)
+  hidden_text: render              # render | drop (dropped text is counted and reported)
+  equation_mode: mathml            # mathml (image fallback per unsupported equation) | image
+  preserve_font_family: true       # only fonts different from the document default are emitted
+  preserve_font_size: true
+
 logging:
   level: INFO
   json_format: true

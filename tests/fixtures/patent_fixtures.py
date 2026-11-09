@@ -233,12 +233,16 @@ def build_edge_cases(path: Path | str) -> Path:
     return b.build(path)
 
 
-def build_large(path: Path | str, lang: str, claims: int, images: int, image_px: int = 1200, seed: int = 1) -> Path:
-    """Large document: ``claims`` claims and ``images`` incompressible PNGs spread across claims."""
+def build_large(path: Path | str, lang: str, claims: int, images: int, image_px: int = 1200, seed: int = 1,
+                vector_every: int = 0, group_every: int = 0, equation_every: int = 10) -> Path:
+    """Large document: ``claims`` claims, ``images`` incompressible PNGs spread across claims, plus optional
+    EMF figures every ``vector_every`` claims and drawing groups every ``group_every`` claims."""
     T = TEXT[lang]
     rtl = lang == "ar"
     b = DocxBuilder()
     rids = [b.add_media(png_bytes(image_px, image_px, noise=True, seed=seed + i), "png") for i in range(images)]
+    emf = b.add_media(emf_bytes(300, 150), "emf") if vector_every else None
+    small = b.add_media(png_bytes(160, 100), "png") if group_every else None
     b.add(para(run(T["claims"], rtl=rtl), rtl=rtl))
     per = max(1, claims // max(images, 1))
     img_iter = iter(rids)
@@ -249,8 +253,12 @@ def build_large(path: Path | str, lang: str, claims: int, images: int, image_px:
             rid = next(img_iter, None)
             if rid:
                 b.add(para(inline_image(rid, 400, 400, b.pid()), rtl=rtl))
-        if n % 10 == 0:
-            b.add(omath_para(omml_fraction("a", "b")))
+        if vector_every and n % vector_every == 0:
+            b.add(para(inline_image(emf, 300, 150, b.pid()), rtl=rtl))
+        if group_every and n % group_every == 0:
+            b.add(para(grouped_drawing(small, small, T["group"], b.pid()), rtl=rtl))
+        if equation_every and n % equation_every == 0:
+            b.add(omath_para(omml_fraction("a", "b"), omml_sup("x", "2")))
         b.add(para(run(T["c4_end"], rtl=rtl), rtl=rtl))
     b.add(para(run(T["end"], rtl=rtl), rtl=rtl))
     return b.build(path)

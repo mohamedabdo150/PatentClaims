@@ -35,7 +35,7 @@ def main() -> int:
             images = max(1, int(mb * 1024 * 1024 / BYTES_PER_IMAGE))
             for lang in ("en", "ar"):
                 p = build_large(args.out / f"large_{int(mb)}mb_{lang}.docx", lang, args.claims, images, IMAGE_PX,
-                                seed=1 if lang == "en" else 1000)
+                                seed=1 if lang == "en" else 1000, vector_every=25, group_every=50)
                 print(f"{p}  {p.stat().st_size / 1024 / 1024:.1f} MB  ({images} images, {args.claims} claims)")
         return 0
     for lang in ("en", "ar"):

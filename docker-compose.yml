@@ -3,7 +3,7 @@
 services:
   patent-converter:
     build: .
-    image: patent-converter:0.2.0
+    image: patent-converter:1.0.0
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8000}:8000"
