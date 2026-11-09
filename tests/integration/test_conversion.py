@@ -13,9 +13,9 @@ from patent_converter.html.sanitizer import sanitize
 from patent_converter.pairing.bilingual_pairing import assemble_response, pair_claims
 from patent_converter.pipeline.converter import convert_document
 from patent_converter.security.resource_limits import Deadline
-from tests.conftest import make_settings
+from tests.conftest import make_settings, soffice_available
 
-pytestmark = pytest.mark.skipif(not shutil.which("soffice") or not shutil.which("pdftocairo"),
+pytestmark = pytest.mark.skipif(not soffice_available() or not shutil.which("pdftocairo"),
                                 reason="LibreOffice/poppler not installed")
 IMG = re.compile(r'<img [^>]*src="data:(image/[a-z+]+);base64,([A-Za-z0-9+/=]+)"')
 

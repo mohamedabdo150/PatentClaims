@@ -21,9 +21,13 @@ jobs:
           Invoke-WebRequest https://github.com/oschwartz10612/poppler-windows/releases/download/v24.08.0-0/Release-24.08.0-0.zip -OutFile poppler.zip
           Expand-Archive poppler.zip -DestinationPath C:\poppler
           "C:\poppler\poppler-24.08.0\Library\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
-          "C:\Program Files\LibreOffice\program" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          # Not on PATH: LibreOffice ships its own python.exe, which would shadow the real interpreter.
+          "PATENT__CONVERSION__SOFFICE_PATH=C:\Program Files\LibreOffice\program\soffice.com" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Install Python dependencies
-        run: python -m pip install -r requirements-dev.txt -r requirements-windows.txt -r requirements-pdf.txt
+        shell: pwsh
+        run: |
+          python -c "import sys; print(sys.executable)"
+          python -m pip install -r requirements-dev.txt -r requirements-windows.txt -r requirements-pdf.txt
       - name: Test suite
         env:
           PYTHONUTF8: "1"

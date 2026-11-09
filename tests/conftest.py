@@ -12,6 +12,15 @@ from tests.fixtures.patent_fixtures import build_edge_cases, build_patent
 TEST_API_KEY = "test-key-123"
 
 
+def soffice_available() -> bool:
+    """LibreOffice reachable as configured (PATENT__CONVERSION__SOFFICE_PATH) or on PATH."""
+    import os
+    import shutil
+
+    configured = os.environ.get("PATENT__CONVERSION__SOFFICE_PATH")
+    return bool(configured and Path(configured).exists()) or shutil.which("soffice") is not None
+
+
 @pytest.fixture(scope="session")
 def registry() -> PatternRegistry:
     return PatternRegistry.from_file(PROJECT_ROOT / "config" / "claim_patterns.yaml")

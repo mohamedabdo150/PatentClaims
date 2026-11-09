@@ -14,6 +14,7 @@ from patent_converter.analyzer.docx_analyzer import DocxAnalyzer
 from patent_converter.extraction.claim_extractor import extract_claims
 from patent_converter.extraction.model_builder import ContentPolicy
 from patent_converter.validation.integrity import check_extraction
+from tests.conftest import soffice_available
 
 SAMPLES = Path(os.environ.get("PATENT_SAMPLES_DIR", "/nonexistent"))
 pytestmark = pytest.mark.skipif(not SAMPLES.is_dir(), reason="PATENT_SAMPLES_DIR not set")
@@ -48,7 +49,7 @@ def test_sample_claims(name, lang, settings, registry):
         assert not [i for c in doc.claims for i in c.issues if i.severity == "error"]
 
 
-@pytest.mark.skipif(not shutil.which("soffice"), reason="LibreOffice not installed")
+@pytest.mark.skipif(not soffice_available(), reason="LibreOffice not installed")
 def test_sample_full_conversion(tmp_path, settings, registry):
     from patent_converter.pipeline.converter import convert_document
     from patent_converter.security.resource_limits import Deadline

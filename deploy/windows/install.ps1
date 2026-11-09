@@ -47,6 +47,7 @@ if (-not $PythonExe) {
   if ($py) { $PythonExe = (& py -3.12 -c "import sys; print(sys.executable)").Trim() }
   else { $PythonExe = (Get-Command python -ErrorAction Stop).Source }
 }
+if ($PythonExe -match "LibreOffice") { Fail "the selected Python ($PythonExe) is LibreOffice's bundled interpreter; pass -PythonExe <python 3.12>" }
 $ver = (& $PythonExe -c "import sys; print('%d.%d' % sys.version_info[:2])").Trim()
 if ($ver -ne "3.12") { Fail "Python 3.12 required (found $ver at $PythonExe)" }
 if (-not (Test-Path $NssmPath)) { Fail "nssm.exe not found at $NssmPath (use -NssmPath)" }
@@ -54,7 +55,7 @@ if (-not (Test-Path $SofficePath)) { Fail "LibreOffice not found at $SofficePath
 $Pdftocairo = Join-Path $PopplerBin "pdftocairo.exe"
 if (-not (Test-Path $Pdftocairo)) { Fail "pdftocairo.exe not found in $PopplerBin (use -PopplerBin)" }
 if (-not $NoPdfRoutes -and -not (Test-Path $ModelPath)) {
-  Write-Warning "model not found at $ModelPath: /drawing_detection will answer 'Model not loaded' until it is provided"
+  Write-Warning "model not found at ${ModelPath} - /drawing_detection will answer 'Model not loaded' until it is provided"
 }
 
 Step "Copying application to $InstallDir\app"
