@@ -40,6 +40,13 @@ Step "Checking port $Port"
 if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
   Fail "port $Port is in use. Stop the old service or move it to another port first (e.g. API_PORT=50015)."
 }
+# Hyper-V / WinNAT can reserve dynamic port ranges that include $Port (bind fails with WinError 10013).
+try {
+  $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port); $probe.Start(); $probe.Stop()
+} catch {
+  Fail ("port $Port cannot be bound (probably inside a reserved range: netsh interface ipv4 show excludedportrange protocol=tcp). " +
+        "Reserve it once with: net stop winnat; netsh int ipv4 add excludedportrange protocol=tcp startport=$Port numberofports=1; net start winnat")
+}
 
 Step "Checking prerequisites"
 if (-not $PythonExe) {

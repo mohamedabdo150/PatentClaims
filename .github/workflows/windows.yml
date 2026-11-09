@@ -57,6 +57,13 @@ jobs:
           New-Item -ItemType Directory -Force C:\models | Out-Null
           $env:TF_USE_LEGACY_KERAS = "1"
           python -c "import tf_keras as k; i=k.Input((224,224,3)); o=k.layers.Dense(3,activation='softmax')(k.layers.GlobalAveragePooling2D()(i)); k.Model(i,o).save(r'C:\models\best_model.h5')"
+      - name: Reserve port 50013 (runner images may include it in a Hyper-V dynamic range)
+        shell: pwsh
+        run: |
+          net stop winnat
+          netsh int ipv4 add excludedportrange protocol=tcp startport=50013 numberofports=1
+          net start winnat
+          netsh interface ipv4 show excludedportrange protocol=tcp
       - name: Run install.ps1
         shell: pwsh
         run: >

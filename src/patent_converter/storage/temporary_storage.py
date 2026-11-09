@@ -41,7 +41,19 @@ class JobWorkspace:
         return candidate
 
     def remove(self) -> None:
-        shutil.rmtree(self.path, ignore_errors=True)
+        remove_tree(self.path)
+
+
+def remove_tree(path: Path, attempts: int = 20, delay: float = 0.25) -> bool:
+    """Delete a directory tree; on Windows retry while files are briefly held open
+    (a converter child process exiting, antivirus scanning). The sweeper removes leftovers."""
+    for _ in range(attempts):
+        shutil.rmtree(path, ignore_errors=True)
+        if not os.path.exists(path):
+            return True
+        time.sleep(delay)
+    log.warning("workspace not removed yet; left for the stale-job sweeper", extra={"path": str(path)})
+    return False
 
 
 def sweep_stale_jobs(root: Path, max_age_minutes: int) -> int:
