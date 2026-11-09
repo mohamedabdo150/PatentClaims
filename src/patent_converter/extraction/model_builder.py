@@ -357,8 +357,7 @@ class ModelBuilder:
                         self.ctx.issue("DINGBAT_FONT_TEXT", "warning", f"text in dingbat font {font} kept with its font")
                     out.append(TextRun(text, fmt))
             elif tag in (qn(W, "tab"), qn(W, "ptab")):
-                if tag == qn(W, "tab"):
-                    c.text_chars += 1
+                c.text_chars += 1
                 out.append(TextRun("\t", fmt))
             elif tag in (qn(W, "br"), qn(W, "cr")):
                 c.text_chars += 1

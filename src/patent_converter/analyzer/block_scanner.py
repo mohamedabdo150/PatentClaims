@@ -193,7 +193,7 @@ def scan_block(root: etree._Element) -> BlockStats:
             elif local == "t":
                 if el.text:
                     stats.text_parts.append(el.text)
-            elif local == "tab":
+            elif local in ("tab", "ptab"):
                 stats.text_parts.append("\t")
             elif local in ("br", "cr"):
                 btype = el.get(qn(W, "type"), "textWrapping")
@@ -356,7 +356,7 @@ def paragraph_text(p: etree._Element) -> str:
         if tag == _T or tag == _MT:
             if el.text:
                 out.append(el.text)
-        elif tag == qn(W, "tab"):
+        elif tag in (qn(W, "tab"), qn(W, "ptab")):
             out.append("\t")
         elif tag in (qn(W, "br"), qn(W, "cr")):
             out.append("\n")

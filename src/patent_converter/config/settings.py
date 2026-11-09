@@ -125,6 +125,34 @@ class AnalysisSettings(BaseModel):
     text_sample_chars: int = 60
 
 
+class ConversionSettings(BaseModel):
+    soffice_path: str = "soffice"
+    pdftocairo_path: str = "pdftocairo"
+    raster_dpi: int = Field(192, ge=72, le=600)          # 2x CSS pixels
+    libreoffice_timeout_seconds: int = 600               # per batch
+    libreoffice_batch_size: int = 100
+    prefer_svg: bool = True                              # use sanitized asvg:svgBlip when present
+    max_asset_mb: float = 200
+
+
+class ContentSettings(BaseModel):
+    tracked_changes: str = "reject"                      # reject | accept
+    hidden_text: str = "render"                          # render | drop
+    equation_mode: str = "mathml"                        # mathml (image fallback per equation) | image
+    preserve_font_family: bool = True                    # only fonts differing from the document default
+    preserve_font_size: bool = True
+
+    @model_validator(mode="after")
+    def _values(self) -> "ContentSettings":
+        if self.tracked_changes not in ("reject", "accept"):
+            raise ValueError("content.tracked_changes must be reject|accept")
+        if self.hidden_text not in ("render", "drop"):
+            raise ValueError("content.hidden_text must be render|drop")
+        if self.equation_mode not in ("mathml", "image"):
+            raise ValueError("content.equation_mode must be mathml|image")
+        return self
+
+
 class LoggingSettings(BaseModel):
     level: str = "INFO"
     json_format: bool = True
@@ -141,6 +169,8 @@ class Settings(BaseSettings):
     output: OutputSettings = Field(default_factory=OutputSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     analysis: AnalysisSettings = Field(default_factory=AnalysisSettings)
+    conversion: ConversionSettings = Field(default_factory=ConversionSettings)
+    content: ContentSettings = Field(default_factory=ContentSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     @classmethod

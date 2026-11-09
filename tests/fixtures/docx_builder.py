@@ -73,28 +73,32 @@ def raster_bytes(fmt: str, w: int = 100, h: int = 60) -> bytes:
 
 
 def emf_bytes(w_px: int = 200, h_px: int = 100) -> bytes:
-    """Minimal valid EMF: EMR_HEADER + EMR_EOF."""
+    """Minimal valid EMF: EMR_HEADER, EMR_RECTANGLE, EMR_ELLIPSE, EMR_EOF."""
+    records = (struct.pack("<II4i", 43, 24, 4, 4, w_px - 5, h_px - 5)
+               + struct.pack("<II4i", 42, 24, w_px // 4, h_px // 4, 3 * w_px // 4, 3 * h_px // 4))
+    eof = struct.pack("<IIIII", 14, 20, 0, 16, 20)
+    total = 88 + len(records) + len(eof)
     frame = (0, 0, int(w_px * 26.46), int(h_px * 26.46))  # 0.01 mm at 96 dpi
-    total = 88 + 20
     header = struct.pack(
         "<II4i4iIIIIHHIII2i2i",
-        1, 88, 0, 0, w_px - 1, h_px - 1, *frame, 0x464D4520, 0x10000, total, 2, 1, 0, 0, 0, 0,
+        1, 88, 0, 0, w_px - 1, h_px - 1, *frame, 0x464D4520, 0x10000, total, 4, 1, 0, 0, 0, 0,
         1920, 1080, 508, 286,
     )
-    eof = struct.pack("<IIIII", 14, 20, 0, 16, 20)
-    return header + eof
+    return header + records + eof
 
 
 def wmf_bytes(w: int = 1440, h: int = 720) -> bytes:
-    """Minimal placeable WMF (Aldus header + META_HEADER + META_EOF)."""
+    """Minimal placeable WMF: Aldus header, META_HEADER, SetWindowOrg/Ext, META_RECTANGLE, META_EOF."""
     words = struct.unpack("<10H", struct.pack("<IH4hHI", 0x9AC6CDD7, 0, 0, 0, w, h, 1440, 0))
     checksum = 0
     for word in words:
         checksum ^= word
     placeable = struct.pack("<IH4hHIH", 0x9AC6CDD7, 0, 0, 0, w, h, 1440, 0, checksum)
-    meta = struct.pack("<HHHIHIH", 1, 9, 0x0300, 9 + 3, 0, 3, 0)
+    rect = (struct.pack("<IHhh", 5, 0x020B, 0, 0) + struct.pack("<IHhh", 5, 0x020C, h, w)
+            + struct.pack("<IH4h", 7, 0x041B, h - 40, w - 40, 40, 40))  # bottom, right, top, left
+    meta = struct.pack("<HHHIHIH", 1, 9, 0x0300, 9 + len(rect) // 2 + 3, 0, 7, 0)
     eof = struct.pack("<IH", 3, 0)
-    return placeable + meta + eof
+    return placeable + meta + rect + eof
 
 
 SVG_SAMPLE = (
@@ -146,7 +150,7 @@ def para(*content: str, rtl: bool = False, num: tuple[int, int] | None = None, j
     return f"<w:p>{'<w:pPr>' + ''.join(ppr) + '</w:pPr>' if ppr else ''}{body}</w:p>"
 
 
-def _pic(rid: str, cx: int, cy: int, pid: int, svg_rid: str | None = None) -> str:
+def _pic(rid: str, cx: int, cy: int, pid: int, svg_rid: str | None = None, off: tuple[int, int] = (0, 0)) -> str:
     ext = ""
     if svg_rid:
         ext = ('<a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">'
@@ -154,7 +158,7 @@ def _pic(rid: str, cx: int, cy: int, pid: int, svg_rid: str | None = None) -> st
     return (
         f'<pic:pic><pic:nvPicPr><pic:cNvPr id="{pid}" name="Picture {pid}"/><pic:cNvPicPr/></pic:nvPicPr>'
         f'<pic:blipFill><a:blip r:embed="{rid}">{ext}</a:blip><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
-        f'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        f'<pic:spPr><a:xfrm><a:off x="{off[0]}" y="{off[1]}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
         '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
     )
 
@@ -202,10 +206,14 @@ def textbox(text: str, pid: int, rtl: bool = False) -> str:
 
 def grouped_drawing(rid1: str, rid2: str, label: str, pid: int) -> str:
     cx, cy = 3000000, 1500000
-    shape = (f'<wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr/><wps:txbx><w:txbxContent>{para(label)}'
-             "</w:txbxContent></wps:txbx><wps:bodyPr/></wps:wsp>")
+    pic_h = cy * 3 // 4
+    shape = (f'<wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="{pic_h}"/>'
+             f'<a:ext cx="{cx}" cy="{cy - pic_h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></wps:spPr>'
+             f'<wps:txbx><w:txbxContent>{para(label)}</w:txbxContent></wps:txbx><wps:bodyPr/></wps:wsp>')
     g = ('<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">'
-         f'<wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr/>{_pic(rid1, cx // 2, cy, pid + 1)}{_pic(rid2, cx // 2, cy, pid + 2)}'
+         f'<wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/>'
+         f'<a:chOff x="0" y="0"/><a:chExt cx="{cx}" cy="{cy}"/></a:xfrm></wpg:grpSpPr>'
+         f'{_pic(rid1, cx // 2, pic_h, pid + 1)}{_pic(rid2, cx // 2, pic_h, pid + 2, off=(cx // 2, 0))}'
          f"{shape}</wpg:wgp></a:graphicData>")
     return (
         '<w:r><mc:AlternateContent><mc:Choice Requires="wpg">'
