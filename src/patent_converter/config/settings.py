@@ -151,6 +151,9 @@ class ConversionSettings(BaseModel):
     libreoffice_timeout_seconds: int = 600               # per batch
     libreoffice_batch_size: int = 100
     libreoffice_parallelism: int = Field(4, ge=1, le=32)  # concurrent LibreOffice processes per job
+    # Upper bound on LibreOffice + pdftocairo processes across ALL concurrent jobs of one
+    # server process (None = CPU count). Prevents CPU oversubscription and batch timeouts.
+    max_renderer_processes: int | None = Field(None, ge=1, le=256)
     prefer_svg: bool = True                              # use sanitized asvg:svgBlip when present
     max_asset_mb: float = 200
 

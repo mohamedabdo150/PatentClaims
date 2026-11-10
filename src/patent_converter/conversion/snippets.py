@@ -13,12 +13,15 @@ converted by one LibreOffice process and rasterized by one ``pdftocairo`` run.
 from __future__ import annotations
 
 import io
+import os
 import posixpath
-import uuid
 import re
 import shutil
-from concurrent.futures import ThreadPoolExecutor
+import threading
+import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -228,6 +231,40 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
 _PAGE_NO = re.compile(r"-(\d+)\.png$")
 
 
+# ---------------------------------------------------------------- process-wide limit
+# All concurrent jobs (and both languages of a pair) share one pool of renderer process
+# slots, so N simultaneous conversions never start N x libreoffice_parallelism heavy
+# processes. Per server process: with several uvicorn workers the total is workers x slots.
+_slots_lock = threading.Lock()
+_slots: threading.BoundedSemaphore | None = None
+_slots_size = 0
+
+
+def default_renderer_processes() -> int:
+    return max(1, os.cpu_count() or 1)
+
+
+def _renderer_slots(size: int) -> threading.BoundedSemaphore:
+    global _slots, _slots_size
+    with _slots_lock:
+        if _slots is None or _slots_size != size:
+            # Resized only by a configuration change (tests); in-flight holders keep the old one.
+            _slots, _slots_size = threading.BoundedSemaphore(size), size
+        return _slots
+
+
+@contextmanager
+def renderer_slot(size: int, deadline_check):
+    """Hold one renderer process slot; waiting honours the job deadline."""
+    sem = _renderer_slots(size)
+    while not sem.acquire(timeout=0.5):
+        deadline_check()
+    try:
+        yield
+    finally:
+        sem.release()
+
+
 class SnippetRenderer:
     """Renders snippets in **batch documents**: one DOCX per batch, one page per snippet.
 
@@ -235,12 +272,13 @@ class SnippetRenderer:
     all pages, so the cost per figure is a page, not a process. The first page of every
     batch is a calibration object of known size (LibreOffice's inline placement offset).
     If a batch PDF does not have exactly one page per snippet (e.g. content spilled onto
-    an extra page), that batch is re-rendered one snippet per document, so pages are never
-    attributed to the wrong figure.
+    an extra page), that batch is split in halves and re-rendered, down to one snippet per
+    document if needed, so pages are never attributed to the wrong figure. A single bad
+    figure in a batch of 100 costs ~7 extra runs instead of 100.
     """
 
     def __init__(self, workdir: Path, soffice: str, pdftocairo: str, dpi: int, timeout: int, batch_size: int,
-                 parallelism: int = 1, profile_root: Path | None = None):
+                 parallelism: int = 1, profile_root: Path | None = None, max_processes: int | None = None):
         self.workdir = workdir
         self.soffice = soffice
         self.pdftocairo = pdftocairo
@@ -248,6 +286,7 @@ class SnippetRenderer:
         self.timeout = timeout
         self.batch_size = max(1, batch_size)
         self.parallelism = max(1, parallelism)
+        self.max_processes = max(1, max_processes or default_renderer_processes())
         # LibreOffice profiles are deep directory trees; Windows (MAX_PATH 260) needs them on a
         # short path, independent of how deep the job workspace is.
         self.profile_root = profile_root or workdir
@@ -262,12 +301,14 @@ class SnippetRenderer:
             return {}
         n_batches = max(-(-len(jobs) // self.batch_size), min(self.parallelism, len(jobs)))
         batches = [jobs[i::n_batches] for i in range(n_batches)]  # round-robin: similar mix per batch
-        results = self._run_batches(batches, source, part_limit, deadline_check, prefix="b")
-        retry = [b for b, ok in self._batch_ok.items() if not ok]
-        if retry:
-            self.stats["fallback_batches"] += len(retry)
-            singles = [[job] for idx in retry for job in batches[idx]]
-            results.update(self._run_batches(singles, source, part_limit, deadline_check, prefix="s"))
+        results: dict[str, Path | str] = {}
+        rnd = 0
+        while batches:
+            results.update(self._run_batches(batches, source, part_limit, deadline_check, prefix=f"r{rnd}_"))
+            failed = [batches[idx] for idx, ok in self._batch_ok.items() if not ok]  # only len > 1
+            self.stats["fallback_batches"] += len(failed)
+            batches = [half for b in failed for half in (b[:len(b) // 2], b[len(b) // 2:])]
+            rnd += 1
         return results
 
     # ------------------------------------------------------------------ internals
@@ -295,16 +336,18 @@ class SnippetRenderer:
             deadline_check()
             batch = batches[idx]
             out: dict[str, Path | str] = {}
-            pdf = self._to_pdf(idx, docs[idx], prefix)
+            with renderer_slot(self.max_processes, deadline_check):
+                pdf = self._to_pdf(idx, docs[idx], prefix)
             if pdf is None or isinstance(pdf, str):
                 err = pdf or "LIBREOFFICE_CONVERSION_FAILED"
                 return {job.key: err for job in batch}
-            pages = self._rasterize(pdf, f"{prefix}{idx}")
+            with renderer_slot(self.max_processes, deadline_check):
+                pages = self._rasterize(pdf, f"{prefix}{idx}")
             if isinstance(pages, str):
                 return {job.key: pages for job in batch}
             if len(pages) != len(batch) + 1:
                 if len(batch) > 1:
-                    self._batch_ok[idx] = False  # re-rendered one snippet per document
+                    self._batch_ok[idx] = False  # split in halves and re-rendered
                     return {}
                 return {batch[0].key: "PAGE_COUNT_MISMATCH"}
             self._batch_ok[idx] = True
@@ -362,8 +405,9 @@ class SnippetRenderer:
 
     def _crop(self, png: Path, job: SnippetJob, origin: tuple[int, int] | None) -> Path:
         with Image.open(png) as im:
-            rgb = im.convert("RGB")
-        ink = ImageOps.invert(rgb.convert("L")).getbbox()
+            im.load()
+        # Edges from one greyscale copy; only the cropped region is converted to RGB.
+        ink = ImageOps.invert(im.convert("L")).getbbox()
         if ink is None:
             raise ConverterError("EMPTY_RENDER")
         if job.mode == "exact" and job.extent_emu:
@@ -372,17 +416,18 @@ class SnippetRenderer:
             x0, y0 = origin
             w = max(1, round(job.extent_emu[0] / 914400 * self.dpi))
             h = max(1, round(job.extent_emu[1] / 914400 * self.dpi))
-            if x0 + w > rgb.width + 1 or y0 + h > rgb.height + 1:
+            if x0 + w > im.width + 1 or y0 + h > im.height + 1:
                 raise ConverterError("PAGE_TOO_SMALL")  # object would be clipped: never return a cut figure
-            box = (x0, y0, min(x0 + w, rgb.width), min(y0 + h, rgb.height))
+            box = (x0, y0, min(x0 + w, im.width), min(y0 + h, im.height))
             if ink[0] < x0 - 2 or ink[1] < y0 - 2 or ink[2] > box[2] + 2 or ink[3] > box[3] + 2:
                 # Content outside the object's extent (e.g. shapes overflowing a group): never clip it.
                 box = (min(ink[0], x0), min(ink[1], y0), max(ink[2], box[2]), max(ink[3], box[3]))
         else:
             pad = max(2, self.dpi // 48)
-            box = (max(0, ink[0] - pad), max(0, ink[1] - pad), min(rgb.width, ink[2] + pad), min(rgb.height, ink[3] + pad))
+            box = (max(0, ink[0] - pad), max(0, ink[1] - pad), min(im.width, ink[2] + pad), min(im.height, ink[3] + pad))
         out = self.workdir / "png" / f"{job.key}.final.png"
-        save_png_lossless(rgb.crop(box), out)
+        region = im.crop(box)
+        save_png_lossless(region if region.mode == "RGB" else region.convert("RGB"), out)
         return out
 
 

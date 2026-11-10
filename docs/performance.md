@@ -44,8 +44,13 @@ Figures that are not plain PNG/JPEG are rendered by LibreOffice. How that works:
   per figure, plus a calibration page. Each batch costs one LibreOffice load and
   one `pdftocairo` run. The batches run in `conversion.libreoffice_parallelism`
   (default 4) LibreOffice processes at the same time. If a batch's page count
-  doesn't match (a figure split across pages), only that batch is redone one
-  figure per document, so the result is never wrong, only slower.
+  doesn't match (a figure split across pages), that batch is split in halves and
+  redone until the bad figure is isolated (≈ 7 extra runs for a batch of 100, not
+  100), so the result is never wrong, only slower.
+* **One process limit for the whole service** (`conversion.max_renderer_processes`,
+  default = CPU count). All concurrent jobs share it, so several large documents at
+  once queue for renderer slots instead of overloading the CPUs (which made every
+  batch slower and could push one past `libreoffice_timeout_seconds`).
 * Identical media at the same size are converted once and embedded at each occurrence.
 * Rendered figures are stored as lossless PNG. Black-and-white/grey figures (most
   patent drawings) are stored as 8-bit greyscale: the same pixels at about a third
@@ -60,6 +65,13 @@ Measured on this 4 vCPU sandbox:
 |---|---:|---:|---:|
 | Customer document, 17 claims, 778 EMF figures (`/word_to_json`, one file) | 37 s | **13 s** | 12.6 MB → **6.1 MB** |
 | Synthetic pair, 2 × (500 claims, 3 000 EMF, 250 groups, 250 equations) | — | **76 s**, peak tree RSS 0.95 GB | 19.7 MB response |
+
+Three copies of the 778-figure document at once (`max_concurrent_jobs_per_worker: 3`):
+
+| | Total | Peak renderer processes | Peak memory (process tree) |
+|---|---:|---:|---:|
+| Without the shared limit | 42.4 s | 15 | 2.5 GB |
+| With the shared limit (4 CPUs) | **40.3 s** | 6 | **1.0 GB** |
 
 743 of the 779 figures are pixel-identical before and after; the other 36 differ only
 in anti-aliasing of a few edge pixels.

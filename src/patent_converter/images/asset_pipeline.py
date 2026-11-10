@@ -75,7 +75,8 @@ class AssetPipeline:
                 self.settings.conversion.pdftocairo_path, self.settings.conversion.raster_dpi,
                 self.settings.conversion.libreoffice_timeout_seconds, self.settings.conversion.libreoffice_batch_size,
                 self.settings.conversion.libreoffice_parallelism,
-                profile_root=self.settings.storage.temporary_directory / LO_PROFILES_DIR)
+                profile_root=self.settings.storage.temporary_directory / LO_PROFILES_DIR,
+                max_processes=self.settings.conversion.max_renderer_processes)
             results = renderer.render(jobs, pkg, self.limit, self.deadline_check)
             dpi = self.settings.conversion.raster_dpi
             for key, res in results.items():
