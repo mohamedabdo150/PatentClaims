@@ -50,3 +50,8 @@ security:
 logging:
   level: INFO
   json_format: true
+
+# Browser test bench http://<server>:50013/test/ckeditor4 (CKEditor 4 round trip of the
+# converted claims). Turn on only while testing, then set back to false and restart.
+test_page:
+  enabled: false

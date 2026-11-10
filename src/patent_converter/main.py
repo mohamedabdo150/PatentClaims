@@ -10,8 +10,10 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 
 from . import __version__
 from .api.dependencies import REQUEST_ID_RE, AppState
@@ -77,6 +79,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(router)
     if settings.legacy.enabled:
         app.include_router(legacy_router)
+    if settings.test_page.enabled:
+        page = (Path(__file__).parent / "web" / "ckeditor4_test.html").read_text(encoding="utf-8")
+
+        @app.get("/test/ckeditor4", include_in_schema=False)
+        async def ckeditor4_test_page() -> HTMLResponse:
+            return HTMLResponse(page, headers={"Cache-Control": "no-store"})
+
     state.drawing_model.load_async()
     app.add_middleware(
         BodySizeLimitMiddleware,

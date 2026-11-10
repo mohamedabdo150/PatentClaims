@@ -75,6 +75,35 @@ configuration above.
 * Floating Word objects are shown at their anchor position in the text flow
   (class `pc-floating`).
 
+## Test page
+
+`GET /test/ckeditor4` (off by default; `test_page.enabled: true` or
+`PATENT__TEST_PAGE__ENABLED=true`, then restart) serves a browser test bench:
+
+1. Choose the CKEditor 4 version (CDN: 4.11.4 … 4.22.1, `standard-all`/`full-all`/`basic`)
+   or paste the URL of the `ckeditor.js` your OutSystems application loads (browser
+   Network tab), so the exact build is tested.
+2. Choose the editor configuration: default content filter, the recommended
+   `extraAllowedContent`, filter off, or paste the OutSystems editor config as JSON.
+3. Pick the English and/or Arabic DOCX (`/word_to_json`) or one DOCX
+   (`/convert_word_to_html`) and click **Convert and test**.
+
+The page calls the service from the same address, so no CORS is needed. It then runs
+`setData` → `getData` for every claim and lists per claim what the editor removed:
+elements (`sub`, `sup`, `math`, tables, images…), `dir`, styles, tabs, text and image
+data. Click a claim to see the original rendering next to the live editor, with
+element counts and the HTML before and after. API errors are shown with their code and
+details. Everything runs in the browser and nothing is stored. The browser needs
+access to `cdn.ckeditor.com`, unless you use a custom URL.
+
+### Known CKEditor 4 behaviour: tabs
+Word tabs are emitted as `<span style="white-space:pre">\t</span>`. CKEditor 4 (all
+configurations) turns the tab into one space and drops some of them, so the gap after
+a claim number ("1.→A method") narrows. Text is unchanged. Measured on the customer
+samples with the recommended configuration, tabs were the **only** loss: 21/21 claims in
+two documents, 11/17 and 3/50 in two others. CKEditor keeps `&emsp;`/`&nbsp;`, so the fix
+would be to emit tabs as em spaces (not done yet: it changes the HTML of most claims).
+
 ## Still to verify (Phase 8)
 
 The exact CKEditor version/build and configuration used by the OutSystems

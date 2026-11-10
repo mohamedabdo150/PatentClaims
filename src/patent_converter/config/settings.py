@@ -195,6 +195,12 @@ class PdfSettings(BaseModel):
     timeout_seconds: int = 600
 
 
+class TestPageSettings(BaseModel):
+    """Browser test bench at /test/ckeditor4: converts a DOCX with this service and loads the
+    result into CKEditor 4. Static page, no data stored. Enable only while testing."""
+    enabled: bool = False
+
+
 class LoggingSettings(BaseModel):
     level: str = "INFO"
     json_format: bool = True
@@ -215,6 +221,7 @@ class Settings(BaseSettings):
     content: ContentSettings = Field(default_factory=ContentSettings)
     legacy: LegacySettings = Field(default_factory=LegacySettings)
     pdf: PdfSettings = Field(default_factory=PdfSettings)
+    test_page: TestPageSettings = Field(default_factory=TestPageSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     @classmethod

@@ -69,6 +69,16 @@ net start DrawingDetectionService
 `conversion.libreoffice_parallelism` (4; raise on 16 vCPU), `output.max_response_size_mb`,
 `legacy.require_api_key`.
 
+## CKEditor 4 test page (optional, for testing only)
+A browser page that converts a DOCX with this service and loads every claim into
+CKEditor 4. See [ckeditor_integration.md](ckeditor_integration.md#test-page).
+
+1. In `C:\PatentConverter\app\config\app.windows.yaml` set `test_page:` → `enabled: true`.
+2. `nssm restart PatentClaimsConverter`
+3. Open `http://<server>:50013/test/ckeditor4` in a browser that can reach the server.
+4. When finished, set it back to `false` and restart. (Running `install.ps1` again also
+   resets the file to the repository version, where it is `false`.)
+
 ## Operations
 * Logs: `C:\PatentConverter\logs\service.log` (JSON lines, rotated at 50 MB; no patent text).
 * Metrics: `http://<server>:50013/metrics` (Prometheus).
