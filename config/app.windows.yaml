@@ -27,7 +27,7 @@ conversion:
   soffice_path: 'C:\Program Files\LibreOffice\program\soffice.com'
   pdftocairo_path: 'C:\Drawing_Detection\poppler-23.07.0\Library\bin\pdftocairo.exe'
   raster_dpi: 192
-  libreoffice_parallelism: 4
+  libreoffice_parallelism: 4          # ~ CPUs / 2 (e.g. 8 on a 16 vCPU server); main lever for drawing-heavy documents
   libreoffice_timeout_seconds: 600
 
 legacy:

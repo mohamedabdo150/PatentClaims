@@ -189,14 +189,34 @@ def _convert_whole(settings, profile, request_id, workdir, paths, deadline, stri
 
 def _convert(settings, profile, request_id, workdir, paths, analysis, deadline, strict, t0,
              legacy: bool = False) -> dict[str, Any]:
-    docs = {}
-    for lang, key in (("en", "english"), ("ar", "arabic")):
-        if lang not in paths:
-            continue
+    todo = [(lang, key) for lang, key in (("en", "english"), ("ar", "arabic")) if lang in paths]
+
+    def one(item):
+        lang, key = item
         t = time.perf_counter()
-        docs[lang] = convert_document(paths[lang][0], lang, profile, settings, analysis[key], workdir / lang,
-                                      deadline, strict)
+        doc = convert_document(paths[lang][0], lang, profile, settings, analysis[key], workdir / lang,
+                               deadline, strict)
         metrics.PHASE_DURATION.labels(f"convert_{lang}").observe(time.perf_counter() - t)
+        return lang, doc
+
+    parallel = settings.processing.parallel_languages
+    if parallel is None:
+        parallel = (os.cpu_count() or 1) >= 2 * settings.conversion.libreoffice_parallelism
+    if parallel and len(todo) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=len(todo), thread_name_prefix="lang") as pool:
+            futures = [pool.submit(one, item) for item in todo]
+            for f in futures:
+                # Stop the other language as soon as one fails.
+                f.add_done_callback(lambda f: f.exception() is not None and deadline.cancel())
+            errors = [f.exception() for f in futures]  # waits for both
+        real = [e for e in errors if e is not None and not isinstance(e, DeadlineExceeded)]
+        if real or any(errors):
+            # Report the actual failure, not the cancellation it caused in the other language.
+            raise (real or [e for e in errors if e is not None])[0]
+        docs = dict(f.result() for f in futures)
+    else:
+        docs = dict(one(item) for item in todo)
     t = time.perf_counter()
     response = workdir / "response.json"
     limit = int(settings.output.max_response_size_mb * MB)

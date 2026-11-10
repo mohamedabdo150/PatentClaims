@@ -6,9 +6,8 @@ Each snippet becomes a minimal DOCX:
   extent, so size and aspect ratio match the source exactly.
 * ``crop`` mode (equations): a large page; the result is cropped to the inked area.
 
-All snippets of a document are converted by one LibreOffice process per batch
-(``--convert-to pdf``), then rasterized page 1 by ``pdftocairo`` at the
-configured DPI.
+Snippets are combined into batch documents (one page per snippet); each batch is
+converted by one LibreOffice process and rasterized by one ``pdftocairo`` run.
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from lxml import etree
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
 
 from ..ooxml.namespaces import A, R, V, W, WP, qn
 from ..ooxml.package_reader import DocxPackage
@@ -55,6 +54,7 @@ _CT_DEFAULTS = [
     ("svg", "image/svg+xml"), ("bmp", "image/bmp"), ("bin", "application/vnd.openxmlformats-officedocument.oleObject"),
 ]
 _CONTEXT_PARTS = {"theme", "styles", "numbering", "fontTable"}
+SLACK_TWIPS = (1440, 720)  # 1 in x 0.5 in (smaller slack shifts anti-aliasing, no real speed gain)
 CROP_PAGE = (31680, 16000)  # twips (~56 x 28 cm) for equations
 CALIBRATION_KEY = "zz_calibration"
 CALIBRATION_EXTENT = (914400, 457200)  # 1in x 0.5in
@@ -65,7 +65,7 @@ def _calibration_job(run_xml: bytes) -> "SnippetJob":
     buf = io.BytesIO()
     Image.new("RGB", (96, 48), "black").save(buf, "PNG")
     return SnippetJob(CALIBRATION_KEY, run_xml, None, {}, CALIBRATION_EXTENT, "exact",
-                      blobs={"rIdM": ("calibration.png", buf.getvalue(), RT_IMAGE)})
+                      blobs={"rIdCal": ("calibration.png", buf.getvalue(), RT_IMAGE)})
 
 
 @dataclass
@@ -103,32 +103,60 @@ def _to_inline(fragment: etree._Element) -> etree._Element:
     return fragment
 
 
-def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_limit: int) -> None:
+def _page_twips(job: SnippetJob) -> tuple[int, int]:
     if job.mode == "exact" and job.extent_emu:
-        # Slack around the object: LibreOffice offsets inline objects slightly (measured by calibration).
-        w = max(20, -(-job.extent_emu[0] // EMU_PER_TWIP)) + 1440
-        h = max(20, -(-job.extent_emu[1] // EMU_PER_TWIP)) + 720
-    else:
-        w, h = CROP_PAGE
-    body = ""
+        # Slack around the object: LibreOffice offsets inline objects slightly (0.125 in, measured
+        # by the calibration page); generous slack keeps the object fully on the page.
+        return (max(20, -(-job.extent_emu[0] // EMU_PER_TWIP)) + SLACK_TWIPS[0],
+                max(20, -(-job.extent_emu[1] // EMU_PER_TWIP)) + SLACK_TWIPS[1])
+    return CROP_PAGE
+
+
+def _sect_pr(w: int, h: int) -> str:
+    return (f'<w:sectPr><w:pgSz w:w="{w}" w:h="{h}"/><w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" '
+            f'w:header="0" w:footer="0" w:gutter="0"/></w:sectPr>')
+
+
+def _job_paragraphs(job: SnippetJob) -> list[tuple[str, str]]:
+    """(pPr children, paragraph content) of one snippet; the caller appends the section break."""
+    paras: list[tuple[str, str]] = []
     if job.run_xml is not None:
         frag = _to_inline(etree.fromstring(job.run_xml))
-        body = ('<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>'
-                '<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr><w:r><w:rPr><w:sz w:val="2"/></w:rPr>'
-                + etree.tostring(frag, encoding="unicode") + "</w:r></w:p>")
+        xml = etree.tostring(frag, encoding="unicode")
         if frag.tag.startswith("{http://schemas.openxmlformats.org/officeDocument/2006/math}"):
-            body = '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>' + etree.tostring(frag, encoding="unicode") + "</w:p>"
+            paras.append(('<w:spacing w:before="0" w:after="0"/>', xml))
+        else:
+            paras.append(('<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="2"/></w:rPr>',
+                          '<w:r><w:rPr><w:sz w:val="2"/></w:rPr>' + xml + "</w:r>"))
     if job.paragraph_xml is not None:
-        body += '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>' + job.paragraph_xml.decode("utf-8") + "</w:p>"
-    doc = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {NS_DECL}><w:body>{body}'
-           f'<w:sectPr><w:pgSz w:w="{w}" w:h="{h}"/><w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" '
-           f'w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>')
+        paras.append(('<w:spacing w:before="0" w:after="0"/>', job.paragraph_xml.decode("utf-8")))
+    if not paras:
+        paras.append(("", ""))
+    return paras
+
+
+def build_batch_docx(jobs: list[SnippetJob], source: DocxPackage, out: Path, part_limit: int) -> None:
+    """One DOCX with one page per job (each page sized for its job, in job order).
+
+    Pages are separate sections whose properties sit in the job's last paragraph, so
+    no extra paragraph (that could spill onto an extra page) is added.
+    """
+    body_parts: list[str] = []
+    for i, job in enumerate(jobs):
+        paras = _job_paragraphs(job)
+        last = i == len(jobs) - 1
+        for j, (ppr, content) in enumerate(paras):
+            sect = _sect_pr(*_page_twips(job)) if (j == len(paras) - 1 and not last) else ""
+            body_parts.append(f"<w:p><w:pPr>{ppr}{sect}</w:pPr>{content}</w:p>")
+    doc = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {NS_DECL}><w:body>'
+           + "".join(body_parts) + _sect_pr(*_page_twips(jobs[-1])) + "</w:body></w:document>")
     main_part, _strict = source.main_document_part(part_limit)
     main_rels = source.relationships(main_part, part_limit)
     defaults, overrides = source.content_types(part_limit)
     rel_entries: dict[str, tuple[str, str]] = {}   # rId -> (type, target relative to word/)
-    for rid, (part, rtype) in job.parts.items():
-        rel_entries[rid] = (rtype, posixpath.relpath(part, "word"))
+    for job in jobs:
+        for rid, (part, rtype) in job.parts.items():
+            rel_entries[rid] = (rtype, posixpath.relpath(part, "word"))
     copied: dict[str, None] = {}
 
     def copy_part(zf: zipfile.ZipFile, part: str, depth: int = 0) -> None:
@@ -155,8 +183,8 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
                     copy_part(zf, rel.part_name, depth + 1)
 
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Document-wide parts the fragment depends on: theme (scheme colours/fonts used by
-        # DrawingML and SmartArt), styles, numbering and font table.
+        # Document-wide parts the fragments depend on: theme (scheme colours/fonts used by
+        # DrawingML and SmartArt), styles, numbering and font table — copied once per batch.
         for rel in main_rels.values():
             if rel.rel_type.rsplit("/", 1)[-1] in _CONTEXT_PARTS and rel.part_name and not rel.external:
                 rel_entries.setdefault(rel.rel_id, (rel.rel_type, posixpath.relpath(rel.part_name, "word")))
@@ -165,17 +193,20 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
                     '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                     '<Relationship Id="rIdDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
         zf.writestr("word/document.xml", doc)
-        for part, _rtype in list(job.parts.values()):
-            copy_part(zf, part)
-        blob_rels = []
-        for rid, (name, data, rtype) in (job.blobs or {}).items():
-            zf.writestr("word/media/" + name, data)
-            blob_rels.append(f'<Relationship Id="{escape(rid)}" Type="{escape(rtype)}" Target="media/{name}"/>')
+        for job in jobs:
+            for part, _rtype in list(job.parts.values()):
+                copy_part(zf, part)
+        blob_rels = {}
+        for job in jobs:
+            for rid, (name, data, rtype) in (job.blobs or {}).items():
+                if rid not in blob_rels:
+                    zf.writestr("word/media/" + name, data)
+                    blob_rels[rid] = f'<Relationship Id="{escape(rid)}" Type="{escape(rtype)}" Target="media/{name}"/>'
         zf.writestr("word/_rels/document.xml.rels",
                     '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                     + "".join(f'<Relationship Id="{escape(rid)}" Type="{escape(t)}" Target="{escape(tg)}"/>'
                               for rid, (t, tg) in rel_entries.items())
-                    + "".join(blob_rels) + "</Relationships>")
+                    + "".join(blob_rels.values()) + "</Relationships>")
         part_overrides = "".join(
             f'<Override PartName="/{escape(p)}" ContentType="{escape(overrides[p])}"/>' for p in copied if p in overrides)
         exts = dict(_CT_DEFAULTS)
@@ -190,7 +221,24 @@ def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_lim
                     + part_overrides + "</Types>")
 
 
+def build_snippet_docx(job: SnippetJob, source: DocxPackage, out: Path, part_limit: int) -> None:
+    build_batch_docx([job], source, out, part_limit)
+
+
+_PAGE_NO = re.compile(r"-(\d+)\.png$")
+
+
 class SnippetRenderer:
+    """Renders snippets in **batch documents**: one DOCX per batch, one page per snippet.
+
+    Per batch: one LibreOffice load (``--convert-to pdf``) and one ``pdftocairo`` run for
+    all pages, so the cost per figure is a page, not a process. The first page of every
+    batch is a calibration object of known size (LibreOffice's inline placement offset).
+    If a batch PDF does not have exactly one page per snippet (e.g. content spilled onto
+    an extra page), that batch is re-rendered one snippet per document, so pages are never
+    attributed to the wrong figure.
+    """
+
     def __init__(self, workdir: Path, soffice: str, pdftocairo: str, dpi: int, timeout: int, batch_size: int,
                  parallelism: int = 1, profile_root: Path | None = None):
         self.workdir = workdir
@@ -198,90 +246,107 @@ class SnippetRenderer:
         self.pdftocairo = pdftocairo
         self.dpi = dpi
         self.timeout = timeout
-        self.batch_size = batch_size
+        self.batch_size = max(1, batch_size)
         self.parallelism = max(1, parallelism)
         # LibreOffice profiles are deep directory trees; Windows (MAX_PATH 260) needs them on a
         # short path, independent of how deep the job workspace is.
         self.profile_root = profile_root or workdir
-        (workdir / "in").mkdir(parents=True, exist_ok=True)
-        (workdir / "pdf").mkdir(exist_ok=True)
-        (workdir / "png").mkdir(exist_ok=True)
+        self.stats = {"batches": 0, "fallback_batches": 0, "pages": 0}
+        for d in ("in", "pdf", "png"):
+            (workdir / d).mkdir(parents=True, exist_ok=True)
 
+    # ------------------------------------------------------------------ public
     def render(self, jobs: list[SnippetJob], source: DocxPackage, part_limit: int, deadline_check) -> dict[str, Path | str]:
         """Return key -> PNG path, or key -> error string."""
-        results: dict[str, Path | str] = {}
-        inputs: dict[str, Path] = {}
-        if any(j.mode == "exact" for j in jobs):
-            from ..images.asset_pipeline import _pic_run_xml
-            jobs = [*jobs, _calibration_job(_pic_run_xml("rIdM", *CALIBRATION_EXTENT))]
-        self.origin: tuple[int, int] | None = None
-        for job in jobs:
-            deadline_check()
-            path = self.workdir / "in" / f"{job.key}.docx"
-            try:
-                build_snippet_docx(job, source, path, part_limit)
-                inputs[job.key] = path
-            except Exception as exc:  # noqa: BLE001
-                results[job.key] = f"SNIPPET_BUILD_FAILED:{type(exc).__name__}"
-        keys = list(inputs)
-        # Distribute snippets round-robin so every batch gets a similar mix of work.
-        n_batches = max(1, -(-len(keys) // self.batch_size))
-        n_batches = max(n_batches, min(self.parallelism, len(keys)))
-        batches = [keys[i::n_batches] for i in range(n_batches)]
-
-        def convert(idx_batch: tuple[int, list[str]]) -> list[str]:
-            idx, batch = idx_batch
-            profile = (self.profile_root / f"{uuid.uuid4().hex[:8]}{idx}").resolve()
-            outdir = self.workdir / "pdf"
-            cmd = [self.soffice, "--headless", "--norestore", "--nolockcheck", "--nodefault", "--nologo",
-                   f"-env:UserInstallation={profile.as_uri()}", "--convert-to", "pdf",
-                   "--outdir", str(outdir), *[str(inputs[k]) for k in batch]]
-            try:
-                run_isolated(cmd, self.workdir / f"run{idx}", self.timeout)
-            except ConverterTimeout:
-                return batch
-            finally:
-                shutil.rmtree(profile, ignore_errors=True)
-            return []
-
-        with ThreadPoolExecutor(max_workers=self.parallelism) as pool:
-            deadline_check()
-            for timed_out in pool.map(convert, list(enumerate(batches))):
-                for k in timed_out:
-                    results[k] = "LIBREOFFICE_TIMEOUT"
-        jobs_by_key = {j.key: j for j in jobs}
-        def rasterize(key: str) -> tuple[str, Path | str]:
-            pdf = self.workdir / "pdf" / f"{key}.pdf"
-            if not pdf.exists():
-                return key, "LIBREOFFICE_CONVERSION_FAILED"
-            base = self.workdir / "png" / key
-            try:
-                proc = run_isolated([self.pdftocairo, "-png", "-r", str(self.dpi), "-f", "1", "-l", "1",
-                                     "-singlefile", str(pdf), str(base)], self.workdir / "raster", 120)
-            except ConverterError:
-                return key, "RASTERIZE_TIMEOUT"
-            png = base.with_suffix(".png")
-            if proc.returncode != 0 or not png.exists():
-                return key, "RASTERIZE_FAILED"
-            return key, png
-
-        pending = [k for k in keys if k not in results]
-        if CALIBRATION_KEY in pending:  # the calibration must be measured before any exact crop
-            _, cal = rasterize(CALIBRATION_KEY)
-            self.origin = self._calibrate(cal) if isinstance(cal, Path) else None
-            pending.remove(CALIBRATION_KEY)
-        deadline_check()
-        with ThreadPoolExecutor(max_workers=self.parallelism) as pool:
-            for key, res in pool.map(rasterize, pending):
-                if isinstance(res, str):
-                    results[key] = res
-                    continue
-                try:
-                    results[key] = self._crop(res, jobs_by_key[key])
-                except ConverterError as exc:
-                    results[key] = str(exc)
-        results.pop(CALIBRATION_KEY, None)
+        if not jobs:
+            return {}
+        n_batches = max(-(-len(jobs) // self.batch_size), min(self.parallelism, len(jobs)))
+        batches = [jobs[i::n_batches] for i in range(n_batches)]  # round-robin: similar mix per batch
+        results = self._run_batches(batches, source, part_limit, deadline_check, prefix="b")
+        retry = [b for b, ok in self._batch_ok.items() if not ok]
+        if retry:
+            self.stats["fallback_batches"] += len(retry)
+            singles = [[job] for idx in retry for job in batches[idx]]
+            results.update(self._run_batches(singles, source, part_limit, deadline_check, prefix="s"))
         return results
+
+    # ------------------------------------------------------------------ internals
+    def _calibration(self) -> SnippetJob:
+        from ..images.asset_pipeline import _pic_run_xml
+        return _calibration_job(_pic_run_xml("rIdCal", *CALIBRATION_EXTENT))
+
+    def _run_batches(self, batches: list[list[SnippetJob]], source: DocxPackage, part_limit: int, deadline_check,
+                     prefix: str) -> dict[str, Path | str]:
+        results: dict[str, Path | str] = {}
+        self._batch_ok: dict[int, bool] = {}
+        docs: dict[int, Path] = {}
+        for idx, batch in enumerate(batches):
+            deadline_check()
+            path = self.workdir / "in" / f"{prefix}{idx}.docx"
+            try:
+                build_batch_docx([self._calibration(), *batch], source, path, part_limit)
+                docs[idx] = path
+            except Exception as exc:  # noqa: BLE001
+                for job in batch:
+                    results[job.key] = f"SNIPPET_BUILD_FAILED:{type(exc).__name__}"
+        self.stats["batches"] += len(docs)
+
+        def process(idx: int) -> dict[str, Path | str]:
+            deadline_check()
+            batch = batches[idx]
+            out: dict[str, Path | str] = {}
+            pdf = self._to_pdf(idx, docs[idx], prefix)
+            if pdf is None or isinstance(pdf, str):
+                err = pdf or "LIBREOFFICE_CONVERSION_FAILED"
+                return {job.key: err for job in batch}
+            pages = self._rasterize(pdf, f"{prefix}{idx}")
+            if isinstance(pages, str):
+                return {job.key: pages for job in batch}
+            if len(pages) != len(batch) + 1:
+                if len(batch) > 1:
+                    self._batch_ok[idx] = False  # re-rendered one snippet per document
+                    return {}
+                return {batch[0].key: "PAGE_COUNT_MISMATCH"}
+            self._batch_ok[idx] = True
+            self.stats["pages"] += len(pages)
+            origin = self._calibrate(pages[0])
+            for job, png in zip(batch, pages[1:]):
+                try:
+                    out[job.key] = self._crop(png, job, origin)
+                except ConverterError as exc:
+                    out[job.key] = str(exc)
+            return out
+
+        with ThreadPoolExecutor(max_workers=self.parallelism) as pool:
+            for part in pool.map(process, list(docs)):
+                results.update(part)
+        return results
+
+    def _to_pdf(self, idx: int, docx: Path, prefix: str) -> Path | str | None:
+        profile = (self.profile_root / f"{uuid.uuid4().hex[:8]}{prefix}{idx}").resolve()
+        cmd = [self.soffice, "--headless", "--norestore", "--nolockcheck", "--nodefault", "--nologo",
+               f"-env:UserInstallation={profile.as_uri()}", "--convert-to", "pdf",
+               "--outdir", str(self.workdir / "pdf"), str(docx)]
+        try:
+            run_isolated(cmd, self.workdir / f"run{prefix}{idx}", self.timeout)
+        except ConverterTimeout:
+            return "LIBREOFFICE_TIMEOUT"
+        finally:
+            shutil.rmtree(profile, ignore_errors=True)
+        pdf = self.workdir / "pdf" / (docx.stem + ".pdf")
+        return pdf if pdf.exists() else None
+
+    def _rasterize(self, pdf: Path, stem: str) -> list[Path] | str:
+        base = self.workdir / "png" / stem
+        try:
+            proc = run_isolated([self.pdftocairo, "-png", "-r", str(self.dpi), str(pdf), str(base)],
+                                self.workdir / "raster", self.timeout)
+        except ConverterError:
+            return "RASTERIZE_TIMEOUT"
+        if proc.returncode != 0:
+            return "RASTERIZE_FAILED"
+        pages = [(int(m.group(1)), p) for p in base.parent.glob(stem + "-*.png") if (m := _PAGE_NO.search(p.name))]
+        return [p for _n, p in sorted(pages)]
 
     def _calibrate(self, png: Path) -> tuple[int, int] | None:
         """Locate the page position where LibreOffice places an inline object of known size."""
@@ -295,19 +360,20 @@ class SnippetRenderer:
             return None
         return ink[0], ink[1]
 
-    def _crop(self, png: Path, job: SnippetJob) -> Path:
+    def _crop(self, png: Path, job: SnippetJob, origin: tuple[int, int] | None) -> Path:
         with Image.open(png) as im:
-            im.load()
             rgb = im.convert("RGB")
         ink = ImageOps.invert(rgb.convert("L")).getbbox()
         if ink is None:
             raise ConverterError("EMPTY_RENDER")
         if job.mode == "exact" and job.extent_emu:
-            if self.origin is None:
+            if origin is None:
                 raise ConverterError("CALIBRATION_FAILED")
-            x0, y0 = self.origin
+            x0, y0 = origin
             w = max(1, round(job.extent_emu[0] / 914400 * self.dpi))
             h = max(1, round(job.extent_emu[1] / 914400 * self.dpi))
+            if x0 + w > rgb.width + 1 or y0 + h > rgb.height + 1:
+                raise ConverterError("PAGE_TOO_SMALL")  # object would be clipped: never return a cut figure
             box = (x0, y0, min(x0 + w, rgb.width), min(y0 + h, rgb.height))
             if ink[0] < x0 - 2 or ink[1] < y0 - 2 or ink[2] > box[2] + 2 or ink[3] > box[3] + 2:
                 # Content outside the object's extent (e.g. shapes overflowing a group): never clip it.
@@ -315,8 +381,15 @@ class SnippetRenderer:
         else:
             pad = max(2, self.dpi // 48)
             box = (max(0, ink[0] - pad), max(0, ink[1] - pad), min(rgb.width, ink[2] + pad), min(rgb.height, ink[3] + pad))
-        out = png.with_name(png.stem + ".final.png")
-        buf = io.BytesIO()
-        rgb.crop(box).save(buf, "PNG", optimize=True)
-        out.write_bytes(buf.getvalue())
+        out = self.workdir / "png" / f"{job.key}.final.png"
+        save_png_lossless(rgb.crop(box), out)
         return out
+
+
+def save_png_lossless(img: Image.Image, out: Path) -> None:
+    """Smallest lossless PNG for rendered figures: greyscale when every pixel is grey
+    (R == G == B, typical for chemical structures; about half the size), otherwise RGB."""
+    r, g, b = img.split()
+    if ImageChops.difference(r, g).getbbox() is None and ImageChops.difference(g, b).getbbox() is None:
+        img = r  # exact: no pixel changes
+    img.save(out, "PNG", compress_level=9)

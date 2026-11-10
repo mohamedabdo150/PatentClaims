@@ -117,8 +117,9 @@ class AssetPipeline:
         if fmt in ("emf", "wmf"):
             extent = asset.extent_emu or self._native_extent(raw)
             stats["converted"] += 1
-            return SnippetJob(f"a{asset.asset_id}", _pic_run_xml("rIdM", *extent), None,
-                              {"rIdM": (asset.part_name, RT_IMAGE)}, extent, "exact")
+            rid = f"rIdM{asset.asset_id}"  # unique: snippets share one batch document
+            return SnippetJob(f"a{asset.asset_id}", _pic_run_xml(rid, *extent), None,
+                              {rid: (asset.part_name, RT_IMAGE)}, extent, "exact")
         if fmt == "svg":
             try:
                 clean, _ = sanitize_svg(raw.read_bytes())

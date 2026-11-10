@@ -36,6 +36,10 @@ class ProcessingSettings(BaseModel):
     # Legacy routes wait this long for a free job slot instead of answering 429
     # (legacy callers do not retry).
     queue_wait_seconds: int = 600
+    # Convert the English and Arabic documents of a pair concurrently (each with
+    # conversion.libreoffice_parallelism LibreOffice processes). None = automatic: only when
+    # the machine has at least 2 x libreoffice_parallelism CPUs (otherwise it only adds memory).
+    parallel_languages: bool | None = None
 
     @property
     def max_english_bytes(self) -> int:
