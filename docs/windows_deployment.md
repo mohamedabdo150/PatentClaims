@@ -69,6 +69,18 @@ net start DrawingDetectionService
 `conversion.libreoffice_parallelism` (4; raise on 16 vCPU), `output.max_response_size_mb`,
 `legacy.require_api_key`.
 
+## Run in a console window (without NSSM)
+For testing or troubleshooting, after `install.ps1` has created `C:\PatentConverter\venv`
+and `app\`. Same environment as the service, logs in the console, Ctrl+C stops it.
+`/api/v1` runs without an API key in this mode.
+
+```powershell
+net stop PatentClaimsConverter      # if the service is running on the same port
+powershell -ExecutionPolicy Bypass -File deploy\windows\run_console.ps1
+# other port and the CKEditor test page:
+powershell -ExecutionPolicy Bypass -File deploy\windows\run_console.ps1 -Port 50014 -TestPage
+```
+
 ## CKEditor 4 test page (optional, for testing only)
 A browser page that converts a DOCX with this service and loads every claim into
 CKEditor 4. See [ckeditor_integration.md](ckeditor_integration.md#test-page).
