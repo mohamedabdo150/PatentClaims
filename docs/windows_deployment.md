@@ -70,16 +70,24 @@ net start DrawingDetectionService
 `legacy.require_api_key`.
 
 ## Run in a console window (without NSSM)
-For testing or troubleshooting, after `install.ps1` has created `C:\PatentConverter\venv`
-and `app\`. Same environment as the service, logs in the console, Ctrl+C stops it.
-`/api/v1` runs without an API key in this mode.
+For testing or troubleshooting. Logs appear in the console; Ctrl+C stops it. `/api/v1`
+runs without an API key in this mode (the legacy routes never need one).
+
+From a repository checkout (no `install.ps1` needed). The first run creates `<repo>\.venv`
+from Python 3.12 and installs the requirements:
 
 ```powershell
-net stop PatentClaimsConverter      # if the service is running on the same port
-powershell -ExecutionPolicy Bypass -File deploy\windows\run_console.ps1
-# other port and the CKEditor test page:
-powershell -ExecutionPolicy Bypass -File deploy\windows\run_console.ps1 -Port 50014 -TestPage
+powershell -ExecutionPolicy Bypass -File deploy\windows\run_console.ps1 -PythonExe "C:\Program Files\Python312\python.exe"
 ```
+
+From the installed copy (`C:\PatentConverter`, created by `install.ps1`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\run_console.ps1 -InstallDir C:\PatentConverter
+```
+
+Options: `-Port 50014` (if the service already uses 50013; or `net stop PatentClaimsConverter`),
+`-TestPage` (`/test/ckeditor4`), `-NoPdfRoutes`, `-SofficePath`, `-PopplerBin`, `-ModelPath`.
 
 ## CKEditor 4 test page (optional, for testing only)
 A browser page that converts a DOCX with this service and loads every claim into
